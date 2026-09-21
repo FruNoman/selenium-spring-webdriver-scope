@@ -53,12 +53,20 @@ annotation at all.
 a completely ordinary `@Bean` per browser, no scope, no custom code.
 That's the whole "fix": there isn't one to write.
 
+[`WebFormPage`](src/test/java/com/frunoyman/webdriverscope/pages/WebFormPage.java) —
+a minimal page object over
+[selenium.dev's own web-form demo page](https://www.selenium.dev/selenium/web/web-form.html),
+so the tests read as "open the form, check the field" instead of raw
+`By.name(...)` locators — the point being that this pattern doesn't care
+how the tests are structured, page objects and all, once the driver bean
+itself is handled correctly.
+
 [`FirstFormTests`](src/test/java/com/frunoyman/webdriverscope/FirstFormTests.java)
 and
 [`SecondFormTests`](src/test/java/com/frunoyman/webdriverscope/SecondFormTests.java)
 are two separate TestNG classes, sharing one Spring context on purpose.
 Every test method:
-1. Navigates to [selenium.dev's own web-form demo page](https://www.selenium.dev/selenium/web/web-form.html).
+1. Opens the form page via `WebFormPage`.
 2. Asserts the text field is empty (a real, live, unused browser session —
    not a page state left over from the previous test).
 3. Prints the Selenium session id, so a live run visibly shows a
