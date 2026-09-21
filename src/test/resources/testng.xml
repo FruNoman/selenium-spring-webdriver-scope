@@ -1,0 +1,9 @@
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="webdriver-scope-demo">
+    <test name="cross-class-driver-recycling">
+        <classes>
+            <class name="com.frunoyman.webdriverscope.FirstFormTests"/>
+            <class name="com.frunoyman.webdriverscope.SecondFormTests"/>
+        </classes>
+    </test>
+</suite>
