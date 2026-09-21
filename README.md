@@ -76,12 +76,16 @@ matter of which profiles are active:
 No test, no page object, no code anywhere references which config
 supplied the `WebDriver` bean — that's the point.
 
+[`BasePage`](src/main/java/com/frunoyman/webdriverscope/pages/BasePage.java) —
+what every page object extends: `@Autowired protected WebDriver driver`
+plus a `@PostConstruct` that runs `PageFactory.initElements(driver, this)`
+so `@FindBy` fields on the subclass resolve. No `LoadableComponent`, no
+navigation/assertion lifecycle — just the driver wiring every page needs.
+
 [`WebFormPage`](src/main/java/com/frunoyman/webdriverscope/pages/WebFormPage.java) —
 a page object over
 [selenium.dev's own web-form demo page](https://www.selenium.dev/selenium/web/web-form.html),
-built the way a Spring-managed page object usually looks: `@Autowired
-WebDriver driver`, `@FindBy` fields resolved via `PageFactory.initElements`
-in a `@PostConstruct`. It's deliberately `@Component @Scope("prototype")`
+extending `BasePage`. It's deliberately `@Component @Scope("prototype")`
 — a singleton page bean would get its `driver` field wired once, at
 first creation, and keep pointing at that driver forever, even after
 `WebDriverScope` recycles it. `prototype` means a fresh `WebFormPage`
