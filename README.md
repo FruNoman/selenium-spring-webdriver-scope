@@ -52,11 +52,12 @@ running tests in parallel.
 ## What's here
 
 [`WebDriverConfig`](src/main/java/com/frunoyman/webdriverscope/config/WebDriverConfig.java) —
-a completely ordinary `@Bean` per browser, no scope, no custom code.
-That's the whole "fix": there isn't one to write. `@Profile("local")` on
-the class gates the whole config, `@Profile("chrome")` /
-`@Profile("firefox")` on each `@Bean` picks the browser — a bean only
-gets registered when both match.
+one `@Bean` per browser, `@Scope("webdriverscope")` on each (see below
+for why — it's not needed for the sequential demo, but it's needed the
+moment anything runs these in parallel, and "local" doesn't imply
+"sequential"). `@Profile("local")` on the class gates the whole config,
+`@Profile("chrome")`/`@Profile("firefox")` on each `@Bean` picks the
+browser — a bean only gets registered when both match.
 
 [`RemoteWebDriverConfig`](src/main/java/com/frunoyman/webdriverscope/config/RemoteWebDriverConfig.java) —
 the same two browsers, but over Selenium Grid (`RemoteWebDriver` +
