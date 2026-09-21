@@ -51,7 +51,30 @@ annotation at all.
 
 [`WebDriverConfig`](src/main/java/com/frunoyman/webdriverscope/config/WebDriverConfig.java) —
 a completely ordinary `@Bean` per browser, no scope, no custom code.
-That's the whole "fix": there isn't one to write.
+That's the whole "fix": there isn't one to write. `@Profile("local")` on
+the class gates the whole config, `@Profile("chrome")` /
+`@Profile("firefox")` on each `@Bean` picks the browser — a bean only
+gets registered when both match.
+
+[`RemoteWebDriverConfig`](src/main/java/com/frunoyman/webdriverscope/config/RemoteWebDriverConfig.java) —
+the same two browsers, but over Selenium Grid (`RemoteWebDriver` +
+`grid.url`), gated by `@Profile("grid")` on the class instead of
+`local`. Same bean names (`chromeDriver`/`firefoxDriver`), same
+`@Profile("chrome")`/`@Profile("firefox")` split on the methods — only
+one of the two config classes is ever active, so there's no collision.
+Switching between local and Grid, or between browsers, is purely a
+matter of which profiles are active:
+
+```bash
+./gradlew test                                        # chrome, local (default)
+./gradlew test -Dspring.profiles.active=firefox,local  # firefox, local
+./gradlew test -Dspring.profiles.active=chrome,grid    # chrome, Grid
+./gradlew test -Dspring.profiles.active=firefox,grid \
+    -Dgrid.url=http://my-hub:4444/wd/hub               # firefox, Grid, custom hub
+```
+
+No test, no page object, no code anywhere references which config
+supplied the `WebDriver` bean — that's the point.
 
 [`WebFormPage`](src/main/java/com/frunoyman/webdriverscope/pages/WebFormPage.java) —
 a page object over
@@ -105,5 +128,6 @@ writing this yourself. There's a good chance you already have it.
 
 ## What this is not
 
-This is deliberately just the driver config + a proof test. No page
-objects, no DB layer, no CI reporting — none of that is the point here.
+This is deliberately just the driver config, a page object, and a proof
+test. No DB layer, no CI reporting, no PageFactory hierarchy beyond one
+page — none of that is the point here.

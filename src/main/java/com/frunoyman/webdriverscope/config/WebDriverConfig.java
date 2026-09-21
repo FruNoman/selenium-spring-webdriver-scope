@@ -15,6 +15,15 @@ import org.springframework.context.annotation.Profile;
 import java.time.Duration;
 
 /**
+ * Local, in-process browsers. The {@code local} profile on the class
+ * gates the whole config; {@code chrome}/{@code firefox} on each
+ * {@code @Bean} picks the browser. Spring only registers a bean when
+ * both the class-level and method-level {@code @Profile} match, so
+ * {@code chrome,local} gets {@link #chromeDriver()} and
+ * {@code firefox,local} gets {@link #firefoxDriver()}.
+ * {@link RemoteWebDriverConfig} mirrors this same split for
+ * {@code grid} — swap the env profile, nothing else changes.
+ *
  * No {@code @Scope} on the beans below on purpose. Spring Boot's own test
  * support (spring-boot-test-autoconfigure's WebDriverContextCustomizerFactory)
  * auto-detects any WebDriver-typed bean in a @SpringBootTest and wraps it in
@@ -27,6 +36,7 @@ import java.time.Duration;
  */
 @Lazy
 @Configuration
+@Profile("local")
 public class WebDriverConfig {
 
     @Value("${implicit.timeout.seconds:10}")

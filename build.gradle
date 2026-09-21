@@ -38,4 +38,10 @@ test {
         events 'passed', 'failed'
         showStandardStreams = true
     }
+    // lets -Dspring.profiles.active=firefox,grid on the gradlew command
+    // line reach the test JVM, so switching local/grid or chrome/firefox
+    // never needs a code or properties-file change.
+    systemProperties.putAll(
+            System.properties.findAll { k, v -> k.toString().startsWith('spring.') || k.toString().startsWith('grid.') }
+    )
 }
