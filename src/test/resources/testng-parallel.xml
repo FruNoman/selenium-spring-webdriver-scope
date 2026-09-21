@@ -1,0 +1,8 @@
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="webdriver-scope-parallel-demo" parallel="methods" thread-count="10">
+    <test name="parallel-grid-sessions">
+        <classes>
+            <class name="com.frunoyman.webdriverscope.ParallelGridTests"/>
+        </classes>
+    </test>
+</suite>

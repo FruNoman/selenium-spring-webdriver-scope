@@ -45,3 +45,23 @@ test {
             System.properties.findAll { k, v -> k.toString().startsWith('spring.') || k.toString().startsWith('grid.') }
     )
 }
+
+// Separate task, separate TestNG suite (parallel="methods" thread-count=10)
+// — kept apart from the default `test` task so the plain sequential demo
+// above isn't accidentally parallelized too.
+tasks.register('testParallel', Test) {
+    group = 'verification'
+    description = 'Runs ParallelGridTests with TestNG parallel="methods" thread-count=10 against Selenium Grid.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useTestNG() {
+        suites 'src/test/resources/testng-parallel.xml'
+    }
+    testLogging {
+        events 'passed', 'failed'
+        showStandardStreams = true
+    }
+    systemProperties.putAll(
+            System.properties.findAll { k, v -> k.toString().startsWith('spring.') || k.toString().startsWith('grid.') }
+    )
+}

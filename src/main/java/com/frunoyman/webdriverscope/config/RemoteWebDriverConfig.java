@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Profile;
+import org.springframework.context.annotation.Scope;
 
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -23,6 +24,12 @@ import java.time.Duration;
  * {@code @Bean} still picks the browser. Only one of the two configs is
  * ever active, so both are free to name their beans {@code chromeDriver}/
  * {@code firefoxDriver} without colliding.
+ *
+ * Spring Boot's own built-in WebDriverScope shares ONE instance per bean
+ * name across every thread — fine for sequential recycling across
+ * cached contexts, wrong for TestNG {@code parallel="methods"}, where
+ * multiple threads would fight over the same browser. WebdriverScope
+ * extends SimpleThreadScope, so each thread gets its own driver.
  */
 @Lazy
 @Configuration
@@ -36,6 +43,7 @@ public class RemoteWebDriverConfig {
     private int implicitTimeoutSeconds;
 
     @Bean
+    @Scope("webdriverscope")
     @Profile("chrome")
     public WebDriver chromeDriver() throws MalformedURLException {
         ChromeOptions options = new ChromeOptions();
@@ -46,6 +54,7 @@ public class RemoteWebDriverConfig {
     }
 
     @Bean
+    @Scope("webdriverscope")
     @Profile("firefox")
     public WebDriver firefoxDriver() throws MalformedURLException {
         FirefoxOptions options = new FirefoxOptions();

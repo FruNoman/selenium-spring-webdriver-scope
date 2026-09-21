@@ -43,9 +43,11 @@ since early Spring Boot 2.x, and it works with TestNG the same as JUnit,
 since it hooks in at the Spring TestContext framework level, not the
 runner.
 
-So this repo isn't "here's my custom scope" anymore. It's a clean demo of
-the thing you actually get for free — with a plain `@Bean` and no scope
-annotation at all.
+So the sequential demo below (`WebDriverConfig`, `FirstFormTests`/
+`SecondFormTests`) needs none of that — a plain `@Bean`, no scope
+annotation, and it's still correct. The custom scope comes back later
+in this README, for a problem the built-in one doesn't touch at all:
+running tests in parallel.
 
 ## What's here
 
@@ -168,17 +170,55 @@ running concurrently.
 
 ## When you'd still want a custom scope
 
-- A Spring version, or a non-Boot Spring Test setup, old enough not to
-  carry `spring-boot-test-autoconfigure`'s fix.
-- You want the driver managed the same way in **production** code too
-  (the built-in one only exists on the test classpath), e.g. a
-  long-running service that recycles WebDriver sessions outside of tests.
-- You want different liveness logic than a null session id — e.g.
-  pinging the driver, capping session age, or logging every recycle.
+Turns out: sooner than I first thought. I originally wrote this section
+assuming the built-in scope makes the custom one obsolete. It doesn't —
+they solve two different problems.
 
-For a plain Spring Boot + Selenium + TestNG/JUnit test suite, though:
-check for `spring-boot-test-autoconfigure` on your classpath before
-writing this yourself. There's a good chance you already have it.
+[`WebdriverScope`](src/main/java/com/frunoyman/webdriverscope/scope/WebdriverScope.java)
+is back in this repo, `@Scope("webdriverscope")` on `RemoteWebDriverConfig`'s
+beans, because [`ParallelGridTests`](src/test/java/com/frunoyman/webdriverscope/ParallelGridTests.java)
+exposed the gap: run it with TestNG `parallel="methods" thread-count="10"`
+against the built-in scope and all 10 threads get handed **the same**
+`RemoteWebDriver` instance — I checked the bytecode: Boot's
+`WebDriverScope` keeps one instance per bean name in a single
+synchronized map, with no notion of "thread." It's built to fix a
+*sequential* problem (a cached context handing back a dead session to
+the *next* test), not a *concurrent* one (ten threads sharing one
+browser *right now*). Tried it: 10 threads, 1 shared session id, then
+all 10 `quit()` calls collided —
+`UnreachableBrowserException`/`RejectedExecutionException`.
+
+`WebdriverScope` extends `SimpleThreadScope`, which is genuinely
+thread-scoped (a `ThreadLocal` under the hood) — that's what actually
+fixes it, and it's exactly what I built into `sem` and
+`backend-automation-framework` without ever being told this by anyone;
+turns out it earns its place for a reason the built-in scope doesn't
+cover at all. Same test, same Grid, this scope active:
+
+```bash
+docker compose -f docker-compose.grid.yml up -d
+./gradlew testParallel -Dspring.profiles.active=chrome,grid
+```
+
+10 threads, 10 distinct session ids, no collisions.
+
+So, updated answer — reach for a custom `SimpleThreadScope`-based scope
+when:
+
+- You run tests in parallel within one JVM (TestNG `parallel="methods"`
+  or `"classes"`, JUnit 5 parallel execution) — the built-in scope alone
+  will silently hand every thread the same browser.
+- A Spring version, or a non-Boot Spring Test setup, old enough not to
+  carry `spring-boot-test-autoconfigure`'s fix at all.
+- You want the driver managed the same way in **production** code too
+  (the built-in one only exists on the test classpath).
+- You want different liveness logic than a null session id.
+
+For a plain **sequential** Spring Boot + Selenium suite, the built-in
+scope alone is genuinely enough — no annotation needed. The moment you
+add `parallel=`, you need both: the built-in one keeps recycling dead
+sessions across cached contexts, `WebdriverScope` keeps threads from
+stepping on each other.
 
 ## What this is not
 
