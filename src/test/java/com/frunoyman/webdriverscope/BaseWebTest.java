@@ -12,8 +12,10 @@ import org.testng.annotations.AfterMethod;
  * Every test class in this repo extends this one. Same
  * {@code @SpringBootTest(classes = ...)} signature on every class is what
  * makes Spring reuse (cache) a single ApplicationContext across all of
- * them — the exact condition that turns a plain singleton/thread-scoped
- * WebDriver bean into a dead-session trap after the first quit().
+ * them — the exact condition that would turn a plain singleton
+ * WebDriver bean into a dead-session trap after the first quit(), if
+ * Spring Boot Test's built-in WebDriverContextCustomizerFactory weren't
+ * quietly handling that for us (see WebDriverConfig).
  */
 @SpringBootTest(classes = DemoApplication.class)
 public class BaseWebTest extends AbstractTestNGSpringContextTests {

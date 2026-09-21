@@ -1,9 +1,8 @@
 # selenium-spring-webdriver-scope
 
-A minimal, extracted version of a pattern I've used in two production
-Spring Boot + Selenium + TestNG frameworks: a custom Spring bean scope
-that keeps `WebDriver` reliably fresh across tests, even when Spring
-caches the `ApplicationContext` between test classes.
+A minimal, runnable example of a Spring Boot + Selenium + TestNG gotcha
+I hit years ago in two production frameworks — and what actually fixes
+it, which turned out not to be what I built back then.
 
 ## The problem
 
@@ -12,46 +11,47 @@ share the same configuration — a documented, deliberate Spring feature,
 because spinning up a full context per class would make a real suite
 unbearably slow.
 
-That collides with how Selenium wants to be used. If `WebDriver` is a
-normal Spring bean (singleton, or thread-scoped — same problem, since
-TestNG/JUnit runners reuse worker threads across classes), the *first*
-test that calls `driver.quit()` in teardown kills the browser session for
-every test after it that shares the same context/thread. The next
+That collides with how Selenium wants to be used. If `WebDriver` is just
+a plain Spring bean (default scope: singleton), the *first* test that
+calls `driver.quit()` in teardown kills the browser session for every
+test after it that shares the same cached context. The next
 `@Autowired WebDriver` doesn't get a new browser — it gets the same bean
 instance back, now pointing at a dead session, and fails with
 `invalid session id`.
 
-The usual fixes each cost something:
-- **`@DirtiesContext`** — Spring's own official answer: throw away and
-  rebuild the whole context after a test. Correct, but exactly the
-  expensive thing context caching exists to avoid.
-- **`@Scope("prototype")`** — a new bean each time, but Spring does not
-  call destroy methods on prototype beans automatically, so you're back to
-  manually tracking and quitting every instance anyway.
-- **A static `ThreadLocal<WebDriver>` outside Spring entirely** — the most
-  common pattern in non-Spring Selenium frameworks, and a perfectly good
-  one, but it means the driver isn't a real Spring bean: no `@Autowired`,
-  no participation in the container.
+Back in 2018–2019 I "fixed" this by writing my own Spring bean scope: a
+`SimpleThreadScope` subclass that checks `RemoteWebDriver.getSessionId()`
+before handing back a cached instance, discards it if it's `null` (i.e.
+already `quit()`), and creates a fresh one. It worked, and I carried that
+pattern into every Spring+Selenium framework I built since.
 
-## This repo's fix
+## The twist
 
-[`WebdriverScope`](src/main/java/com/frunoyman/webdriverscope/scope/WebdriverScope.java)
-extends Spring's own `SimpleThreadScope` and adds one check: before handing
-back the cached instance, it looks at `RemoteWebDriver.getSessionId()`.
-`quit()` nulls that field out. If it's null, the scope discards the dead
-entry and creates a fresh driver instead — keeping the expensive
-`ApplicationContext` alive while only ever recycling the cheap part.
+While writing this repo up, I went to prove the negative case — remove
+the custom scope, fall back to plain `singleton`, watch a second test
+class fail on `invalid session id`. It didn't fail. Every test kept
+passing.
 
-```java
-@Bean
-@Scope("webdriverscope")
-@Profile("chrome")
-public WebDriver chromeDriver() {
-    ...
-}
-```
+Turns out `spring-boot-test-autoconfigure` already ships exactly this
+fix, built in: `WebDriverContextCustomizerFactory`
+(`org.springframework.boot.test.autoconfigure.web.servlet.WebDriverScope`
+if it's on your classpath). It auto-detects any `WebDriver`-typed bean in
+a `@SpringBootTest` and transparently wraps it in its own scope — same
+idea as my hand-rolled one: discard a dead session, hand back a fresh
+driver. No annotation, no config, nothing to opt into. It's been there
+since early Spring Boot 2.x, and it works with TestNG the same as JUnit,
+since it hooks in at the Spring TestContext framework level, not the
+runner.
 
-## Proof, not just an explanation
+So this repo isn't "here's my custom scope" anymore. It's a clean demo of
+the thing you actually get for free — with a plain `@Bean` and no scope
+annotation at all.
+
+## What's here
+
+[`WebDriverConfig`](src/main/java/com/frunoyman/webdriverscope/config/WebDriverConfig.java) —
+a completely ordinary `@Bean` per browser, no scope, no custom code.
+That's the whole "fix": there isn't one to write.
 
 [`FirstFormTests`](src/test/java/com/frunoyman/webdriverscope/FirstFormTests.java)
 and
@@ -65,40 +65,31 @@ Every test method:
    **different session id per test method**, not one browser being reused
    silently across "atomic" tests.
 
+The browsers run with a visible window (not headless) — the point of
+this repo is to *watch* a fresh Chrome window open, get used, and close
+per test, so headless would defeat the demo.
+
 Run it:
 
 ```bash
 ./gradlew test
 ```
 
-## A surprise while writing this up
+## When you'd still want a custom scope
 
-I went to prove the negative case — strip `@Scope("webdriverscope")`,
-fall back to plain `singleton`, watch `SecondFormTests` die on
-`invalid session id`. It didn't die. All three tests kept passing.
+- A Spring version, or a non-Boot Spring Test setup, old enough not to
+  carry `spring-boot-test-autoconfigure`'s fix.
+- You want the driver managed the same way in **production** code too
+  (the built-in one only exists on the test classpath), e.g. a
+  long-running service that recycles WebDriver sessions outside of tests.
+- You want different liveness logic than a null session id — e.g.
+  pinging the driver, capping session age, or logging every recycle.
 
-Turns out `spring-boot-test-autoconfigure` already ships a
-`WebDriverContextCustomizerFactory` (see
-`org.springframework.boot.test.autoconfigure.web.servlet.WebDriverScope`
-if it's on your classpath). It auto-detects any `WebDriver`-typed bean in
-a Spring Boot test and quietly wraps it in its own scope — same idea as
-this repo's, close a dead session and hand back a fresh one — registered
-under the name `"webDriver"`. It's been there since early Spring Boot 2.x,
-I just never ran into it because our production frameworks always
-declared an explicit custom scope, which wins over there being no scope
-declared at all.
-
-So: if you're on a recent enough Spring Boot and your `WebDriver` bean has
-no scope declared, you may already be covered for free. `WebdriverScope`
-in this repo still earns its keep when you want an explicit, visible
-scope you control (e.g. to also validate the session differently, log on
-recycle, or run on a Spring version old enough not to have the built-in
-one) — but check the built-in one first.
+For a plain Spring Boot + Selenium + TestNG/JUnit test suite, though:
+check for `spring-boot-test-autoconfigure` on your classpath before
+writing this yourself. There's a good chance you already have it.
 
 ## What this is not
 
-This is deliberately just the scope + driver config + a proof test, pulled
-out of two real frameworks that also carry PageFactory-style page objects,
-gRPC clients, DB layers, and CI reporting — none of which is the point
-here. If you're evaluating whether to reuse this: the scope class is
-~20 lines and has no dependency on anything else in this repo.
+This is deliberately just the driver config + a proof test. No page
+objects, no DB layer, no CI reporting — none of that is the point here.
