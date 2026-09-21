@@ -1,0 +1,59 @@
+name: Grid tests
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      browser:
+        description: "Browser profile (chrome or firefox)"
+        required: false
+        default: chrome
+        type: choice
+        options:
+          - chrome
+          - firefox
+
+jobs:
+  test-on-grid:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Start Selenium Grid (hub + chrome + firefox nodes)
+        run: docker compose -f docker-compose.grid.yml up -d
+
+      - name: Wait for Grid to report ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4444/status | grep -q '"ready":true'; then
+              echo "Grid is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Grid never became ready" >&2
+          docker compose -f docker-compose.grid.yml logs
+          exit 1
+
+      - name: Run tests against the Grid
+        run: |
+          BROWSER="${{ github.event.inputs.browser || 'chrome' }}"
+          ./gradlew test -Dspring.profiles.active=$BROWSER,grid -Dgrid.url=http://localhost:4444/wd/hub
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: build/reports/tests/test
+
+      - name: Tear down the Grid
+        if: always()
+        run: docker compose -f docker-compose.grid.yml down -v

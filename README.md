@@ -116,6 +116,56 @@ Run it:
 ./gradlew test
 ```
 
+## Running it on Selenium Grid, for real
+
+[`docker-compose.grid.yml`](docker-compose.grid.yml) spins up a real
+hub + node topology, not the single all-in-one `standalone-chrome`
+image — one `selenium/hub` container routing to separate
+`selenium/node-chrome` and `selenium/node-firefox` containers, the same
+shape a CI pipeline or a Kubernetes deployment scales out by adding more
+node containers/pods.
+
+```bash
+docker compose -f docker-compose.grid.yml up -d
+# wait for it: curl http://localhost:4444/status until "ready":true
+./gradlew test -Dspring.profiles.active=chrome,grid
+./gradlew test -Dspring.profiles.active=firefox,grid
+docker compose -f docker-compose.grid.yml down -v
+```
+
+The node images ship their own virtual display (Xvfb), so the
+non-headless `ChromeOptions`/`FirefoxOptions` in `RemoteWebDriverConfig`
+work unmodified even on a CI runner with no real screen — "visible
+window" happens inside the node container, not on the host running the
+tests.
+
+## Running it on GitHub Actions
+
+[`.github/workflows/grid-tests.yml`](.github/workflows/grid-tests.yml)
+runs the exact sequence above as a CI job: start the Grid via
+`docker-compose.grid.yml`, poll `/status` until ready, run
+`./gradlew test -Dspring.profiles.active=$BROWSER,grid`, upload the
+test report, tear the Grid down — `if: always()` so teardown and the
+report upload happen even if the tests fail.
+
+It fires automatically on every push to `master` and on every pull
+request. To run it manually and pick the browser yourself:
+
+1. Push this repo to GitHub (or use the fork/copy you already have).
+2. Open the **Actions** tab.
+3. Select **Grid tests** in the left-hand workflow list.
+4. Click **Run workflow** (top right) — GitHub shows a dropdown for the
+   `browser` input (`chrome` or `firefox`); pick one and confirm.
+5. Watch the job; the **Grid tests** run's **Summary** page has a
+   `test-report` artifact download if you want the full HTML report
+   from that run.
+
+No self-hosted runner, no pre-existing Grid to point at — GitHub's
+standard `ubuntu-latest` runners already have Docker and `docker compose`
+preinstalled, so the workflow's Grid is entirely disposable: created at
+the start of the job, gone at the end, isolated from every other job
+running concurrently.
+
 ## When you'd still want a custom scope
 
 - A Spring version, or a non-Boot Spring Test setup, old enough not to

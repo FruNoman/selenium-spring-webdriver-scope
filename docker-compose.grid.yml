@@ -1,0 +1,32 @@
+# A real Selenium Grid: a hub that routes sessions, and one node
+# container per browser that actually runs it. Unlike the single
+# selenium/standalone-chrome image used for a quick local check, this is
+# the shape a CI pipeline or a Kubernetes deployment scales out — add
+# more node services (or replicas of one) to add capacity.
+services:
+  selenium-hub:
+    image: selenium/hub:latest
+    ports:
+      - "4442:4442"
+      - "4443:4443"
+      - "4444:4444"
+
+  chrome:
+    image: selenium/node-chrome:latest
+    shm_size: 2gb
+    depends_on:
+      - selenium-hub
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+
+  firefox:
+    image: selenium/node-firefox:latest
+    shm_size: 2gb
+    depends_on:
+      - selenium-hub
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
