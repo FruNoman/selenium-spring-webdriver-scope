@@ -33,11 +33,11 @@ jobs:
         run: |
           for i in $(seq 1 60); do
             response="$(curl -s http://localhost:4444/status || true)"
-            if echo "$response" | grep -q '"ready":true'; then
+            if echo "$response" | jq -e '.value.ready == true' >/dev/null 2>&1; then
               echo "Grid is ready (attempt $i)"
               exit 0
             fi
-            echo "Not ready yet (attempt $i): $response"
+            echo "Not ready yet (attempt $i)"
             sleep 3
           done
           echo "Grid never became ready" >&2
