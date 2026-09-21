@@ -31,12 +31,14 @@ jobs:
 
       - name: Wait for Grid to report ready
         run: |
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:4444/status | grep -q '"ready":true'; then
-              echo "Grid is ready"
+          for i in $(seq 1 60); do
+            response="$(curl -s http://localhost:4444/status || true)"
+            if echo "$response" | grep -q '"ready":true'; then
+              echo "Grid is ready (attempt $i)"
               exit 0
             fi
-            sleep 2
+            echo "Not ready yet (attempt $i): $response"
+            sleep 3
           done
           echo "Grid never became ready" >&2
           docker compose -f docker-compose.grid.yml logs
