@@ -20,11 +20,15 @@ public class SecondFormTests extends BaseWebTest {
 
     @Lazy
     @Autowired
+    private WebFormPage webFormPage;
+
+    @Lazy
+    @Autowired
     private WebDriver driver;
 
     @Test
     public void getsARealLiveDriverFromADifferentTestClass() {
-        WebFormPage form = new WebFormPage(driver).open();
+        WebFormPage form = webFormPage.open();
 
         assertEquals(form.getTextFieldValue(), "",
                 "a dead cached driver would have failed before reaching this assertion at all");

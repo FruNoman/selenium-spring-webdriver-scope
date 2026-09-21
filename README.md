@@ -53,13 +53,19 @@ annotation at all.
 a completely ordinary `@Bean` per browser, no scope, no custom code.
 That's the whole "fix": there isn't one to write.
 
-[`WebFormPage`](src/test/java/com/frunoyman/webdriverscope/pages/WebFormPage.java) —
-a minimal page object over
+[`WebFormPage`](src/main/java/com/frunoyman/webdriverscope/pages/WebFormPage.java) —
+a page object over
 [selenium.dev's own web-form demo page](https://www.selenium.dev/selenium/web/web-form.html),
-so the tests read as "open the form, check the field" instead of raw
-`By.name(...)` locators — the point being that this pattern doesn't care
-how the tests are structured, page objects and all, once the driver bean
-itself is handled correctly.
+built the way a Spring-managed page object usually looks: `@Autowired
+WebDriver driver`, `@FindBy` fields resolved via `PageFactory.initElements`
+in a `@PostConstruct`. It's deliberately `@Component @Scope("prototype")`
+— a singleton page bean would get its `driver` field wired once, at
+first creation, and keep pointing at that driver forever, even after
+`WebDriverScope` recycles it. `prototype` means a fresh `WebFormPage`
+(with a fresh `driver` reference) every time one is requested. Test
+classes then inject it with `@Lazy @Autowired`, same reasoning as the
+`driver` field itself: without `@Lazy`, the *injection point* would
+freeze to the first prototype instance ever created.
 
 [`FirstFormTests`](src/test/java/com/frunoyman/webdriverscope/FirstFormTests.java)
 and

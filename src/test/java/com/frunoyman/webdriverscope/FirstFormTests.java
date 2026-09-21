@@ -15,13 +15,21 @@ import static org.testng.Assert.assertTrue;
  */
 public class FirstFormTests extends BaseWebTest {
 
+    // @Lazy here for the same reason as on `driver` below: WebFormPage is
+    // prototype-scoped, so a plain (non-lazy) @Autowired field would
+    // freeze to the very first instance created, wired to whatever driver
+    // existed back then.
+    @Lazy
+    @Autowired
+    private WebFormPage webFormPage;
+
     @Lazy
     @Autowired
     private WebDriver driver;
 
     @Test
     public void textFieldStartsEmptyAndAcceptsInput() {
-        WebFormPage form = new WebFormPage(driver).open();
+        WebFormPage form = webFormPage.open();
 
         assertEquals(form.getTextFieldValue(), "", "a fresh session should start with an empty field");
 
@@ -33,7 +41,7 @@ public class FirstFormTests extends BaseWebTest {
 
     @Test
     public void secondMethodAlsoGetsAFreshSession() {
-        WebFormPage form = new WebFormPage(driver).open();
+        WebFormPage form = webFormPage.open();
 
         // If the scope handed back the previous method's already-quit
         // driver instead of a fresh one, this line throws instead of
