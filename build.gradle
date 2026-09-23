@@ -34,6 +34,14 @@ test {
     useTestNG() {
         suites 'src/test/resources/testng.xml'
     }
+    // `--tests SomeClass` would otherwise be ignored: an explicit suite XML
+    // always runs whole. With a --tests filter, drop the suite and let
+    // Gradle's own class/method filter pick what runs.
+    doFirst {
+        if (!filter.commandLineIncludePatterns.isEmpty()) {
+            options.suiteXmlFiles.clear()
+        }
+    }
     testLogging {
         events 'passed', 'failed'
         showStandardStreams = true

@@ -5,6 +5,10 @@ description: How this repo's Spring bean scope, page objects, profile-based brow
 
 # selenium-spring-webdriver-scope
 
+Related skills: `new-web-test` (workflow for writing a test), `run-test`
+(running/diagnosing), `site-map` (what's known about the sites under test),
+`self-analysis` (fixing skills when reality diverged — a Stop hook asks for it).
+
 A minimal Spring Boot + Selenium + TestNG repo demonstrating one specific
 problem (a cached `@SpringBootTest` context handing back a dead
 `WebDriver`) and two different fixes for two different situations
@@ -322,13 +326,12 @@ scope itself is correct).
    against the real hub image and times out after the full budget,
    *while the Grid is actually ready the whole time* — always parse
    Grid's `/status` with `jq`, never string-match the JSON directly.
-2. **`docker compose ... suites '...testng.xml'` in `build.gradle`
-   overrides Gradle's own `--tests` class filter** — with an explicit
-   TestNG suite XML configured, `./gradlew test --tests SomeClass` runs
-   the *whole* suite regardless (or fails oddly trying to filter a class
-   that isn't in it). To run one class in isolation for debugging,
-   temporarily comment out the `suites` line rather than trusting
-   `--tests`.
+2. **An explicit TestNG suite XML overrides Gradle's `--tests` filter** —
+   `./gradlew test --tests SomeClass` used to run the *whole* suite. Fixed
+   in `build.gradle`: the `test` task's `doFirst` clears the suite XML when
+   a `--tests` filter is present (verified 2026-09-23 for a method, a class
+   and the unfiltered suite). Consequence: a class missing from
+   `testng.xml` still runs with `--tests` but never in the full suite.
 3. **A proxied driver only has the type the proxy was built from** —
    a `@Lazy` or `ScopedProxyMode.INTERFACES` proxy over a `WebDriver`
    return type implements `WebDriver` only, so
