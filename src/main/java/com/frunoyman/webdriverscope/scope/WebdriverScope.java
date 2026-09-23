@@ -2,6 +2,8 @@ package com.frunoyman.webdriverscope.scope;
 
 import org.openqa.selenium.remote.RemoteWebDriver;
 import org.openqa.selenium.remote.SessionId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectFactory;
 import org.springframework.context.support.SimpleThreadScope;
 
@@ -23,13 +25,20 @@ import java.util.Objects;
  */
 public class WebdriverScope extends SimpleThreadScope {
 
+    private static final Logger log = LoggerFactory.getLogger(WebdriverScope.class);
+
     @Override
     public Object get(String name, ObjectFactory<?> objectFactory) {
-        Object driver = super.get(name, objectFactory);
+        ObjectFactory<?> loggingFactory = () -> {
+            Object created = objectFactory.getObject();
+            log.info("Browser session started: {}", ((RemoteWebDriver) created).getSessionId());
+            return created;
+        };
+        Object driver = super.get(name, loggingFactory);
         SessionId sessionId = ((RemoteWebDriver) driver).getSessionId();
         if (Objects.isNull(sessionId)) {
             super.remove(name);
-            driver = super.get(name, objectFactory);
+            driver = super.get(name, loggingFactory);
         }
         return driver;
     }

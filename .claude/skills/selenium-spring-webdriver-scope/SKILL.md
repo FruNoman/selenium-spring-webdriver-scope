@@ -261,12 +261,24 @@ and `WebDriver` injected into a nested `Row`.
   (whole run) and `build/logs/tests/<Class.method>.log` (one per test,
   SiftingAppender on MDC `test`) at DEBUG. Every line carries
   `[thread] [Class.method]`, so parallel output stays readable.
-- `BaseWebTest.setUpTest(Method)` puts MDC `test` (and `session` = the
-  browser session id) and logs `▶ START`; `tearDownTest(ITestResult)` logs
-  `✔ PASS` / `✘ FAIL` with the throwable and stack, then quits, then clears
-  MDC. One @BeforeMethod on purpose — TestNG doesn't order several in a class,
-  and MDC must exist before anything logs. MDC is thread-local; TestNG runs
-  before/test/after on one thread, so it holds under `parallel="methods"`.
+- **Test lifecycle logging lives in a TestNG listener, never in test code**:
+  `listeners/TestLoggingListener` (registered via
+  `src/test/resources/META-INF/services/org.testng.ITestNGListener`, so no
+  class refers to it) sets MDC `test`, logs `▶ START`, `✔ PASS` / `✘ FAIL`
+  (+ stack) / `⏭ SKIP`, and `✘ <config> failed` for a failing
+  `@BeforeMethod`. `BaseWebTest` only drives the browser.
+- **MDC is set in `beforeConfiguration(ITestResult, ITestNGMethod)`, not in
+  `onTestStart`** — verified: TestNG calls `onTestStart` only *after*
+  `@BeforeMethod`, so setup logs (entry page, login, browser start) would be
+  untagged. The two-arg `beforeConfiguration` receives the test method a
+  per-method configuration runs for (null for class/suite level → MDC
+  cleared there). Thread-local + same-thread before/test/after → correct
+  under `parallel="methods"`.
+- The browser session id is logged by `WebdriverScope` when it creates a
+  driver (`Browser session started: <id>`) — a driver event, not a test one.
+- ⚠ Found via these logs (2026-09-23), not fixed yet: when `@BeforeMethod`
+  fails before the browser started, `tearDownTest()`'s `driver.quit()` makes
+  the scope create a browser only to quit it.
 - **Element actions are logged by the framework, not by hand**:
   `ElementFieldDecorator` wraps every `@FindBy` field (plain, custom, lists)
   in `LoggingElement` → `[TablesPage.table.rows[1].cells[0]] getText`.
@@ -279,8 +291,9 @@ and `WebDriver` injected into a nested `Row`.
 - Selenium's CDP "Unable to find version" WARN (Chrome newer than the bundled
   devtools module) is silenced to ERROR in the logback config — harmless
   unless CDP features are used; bump `selenium-java` to fix it for real.
-- Verified 2026-09-23: 9/9 parallel, per-test files created, a deliberately
-  failing test logs ERROR + stack and still quits the browser.
+- Verified 2026-09-23: 9/9 parallel, per-test files; a failing test body →
+  FAIL + stack; a failing `@BeforeMethod` → `setUpTest failed` + stack + SKIP;
+  browsers quit in both cases.
 
 ## Profiles: env axis and browser axis are separate, never combined into one expression
 
