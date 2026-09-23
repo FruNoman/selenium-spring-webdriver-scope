@@ -51,8 +51,7 @@ public class ParallelGridTests extends BaseWebTest {
     public void test10() { assertFreshSession(); }
 
     private void assertFreshSession() {
-        WebFormPage form = webFormPage.open();
-        assertEquals(form.getTextFieldValue(), "",
+        assertEquals(webFormPage.getTextFieldValue(), "",
                 "a session shared with another thread would already have text in it");
         System.out.println(Thread.currentThread().getName() + " -> " + driver);
     }

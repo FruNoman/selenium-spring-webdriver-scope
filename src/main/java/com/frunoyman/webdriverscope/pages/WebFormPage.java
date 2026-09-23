@@ -2,6 +2,7 @@ package com.frunoyman.webdriverscope.pages;
 
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.FindBy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
@@ -19,13 +20,20 @@ import org.springframework.stereotype.Component;
 @Scope("prototype")
 public class WebFormPage extends BasePage {
 
-    private static final String URL = "https://www.selenium.dev/selenium/web/web-form.html";
-
     @FindBy(name = "my-text")
     public WebElement textInput;
 
+    @FindBy(css = "button[type='submit']")
+    public WebElement submitButton;
+
+    // Prototype too, so each WebFormPage gets its own instance wired to
+    // the same thread's driver — no @Lazy needed here.
+    @Autowired
+    private SubmittedFormPage submittedFormPage;
+
+    @Override
     public WebFormPage open() {
-        driver.get(URL);
+        driver.get(baseUrl + "web-form.html");
         return this;
     }
 
@@ -36,5 +44,10 @@ public class WebFormPage extends BasePage {
     public WebFormPage typeIntoTextField(String text) {
         textInput.sendKeys(text);
         return this;
+    }
+
+    public SubmittedFormPage submit() {
+        submitButton.click();
+        return submittedFormPage;
     }
 }

@@ -28,9 +28,7 @@ public class SecondFormTests extends BaseWebTest {
 
     @Test
     public void getsARealLiveDriverFromADifferentTestClass() {
-        WebFormPage form = webFormPage.open();
-
-        assertEquals(form.getTextFieldValue(), "",
+        assertEquals(webFormPage.getTextFieldValue(), "",
                 "a dead cached driver would have failed before reaching this assertion at all");
 
         System.out.println("SecondFormTests session: " + driver);

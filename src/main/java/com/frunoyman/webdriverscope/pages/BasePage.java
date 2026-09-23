@@ -4,6 +4,7 @@ import jakarta.annotation.PostConstruct;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.support.PageFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 
 /**
  * Common base for every page object in this repo. Every subclass must
@@ -16,6 +17,15 @@ public abstract class BasePage {
 
     @Autowired
     protected WebDriver driver;
+
+    @Value("${base.url}")
+    protected String baseUrl;
+
+    /**
+     * Navigates straight to this page. Subclasses narrow the return type
+     * to themselves so calls can keep chaining.
+     */
+    public abstract BasePage open();
 
     @PostConstruct
     private void init() {

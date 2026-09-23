@@ -58,6 +58,12 @@ public class SomeNewPage extends BasePage {
     @FindBy(id = "whatever")
     public WebElement someField;
 
+    @Override
+    public SomeNewPage open() {
+        driver.get(baseUrl + "some-new-page.html");
+        return this;
+    }
+
     // methods that use someField
 }
 ```
@@ -83,6 +89,38 @@ public class SomeNewPage extends BasePage {
   singleton across `@Test` methods within a run) would freeze to the
   first-ever-resolved page instance. `@Lazy` makes it a proxy that calls
   `getBean()` fresh on every method invocation.
+- **Page objects must be stateless** — a direct consequence of the
+  bullet above: every call through the `@Lazy` proxy (e.g.
+  `webFormPage.typeIntoTextField(...)` then `webFormPage.getTextFieldValue()`)
+  lands on a *different* `prototype` instance. That's harmless as long as
+  a page only holds `@FindBy` fields (lazy locators, re-resolved against
+  the live DOM on each access) and the inherited `driver` (the same
+  thread's instance either way). Any other field — a cached value, a
+  "last entered text", a counter — silently resets between calls. If a
+  test genuinely needs one instance for its whole body, take a real one
+  up front with `applicationContext.getBean(SomePage.class)` (or keep the
+  `this` returned by a fluent method) instead of adding state to the page.
+- **Every page implements `open()`** — `BasePage` declares
+  `public abstract BasePage open()` and injects `@Value("${base.url}")
+  protected String baseUrl` (the site root, trailing slash included).
+  Each subclass overrides `open()` with a covariant return type (itself)
+  and does `driver.get(baseUrl + "<its path>")`. Pages never hardcode a
+  full URL.
+- **The entry point is opened by the test base, not by tests** —
+  `BaseWebTest`'s `@BeforeMethod openEntryPage()` calls
+  `getBean(WebFormPage.class).open()` before every test. TestNG runs
+  `@BeforeMethod` on the same thread as its `@Test`, so this stays
+  correct under `parallel="methods"`. Tests start already on the entry
+  page; `open()` on other pages is there for jumping straight to them.
+- **Transitions: inject the next page with plain `@Autowired`** — e.g.
+  `WebFormPage` has `@Autowired private SubmittedFormPage submittedFormPage`
+  and `submit()` clicks, then returns it. No `@Lazy` needed here (unlike on
+  test classes): the target is prototype too, so every `WebFormPage`
+  instance gets its own `SubmittedFormPage` wired to the same thread's
+  driver, and its `@FindBy` fields are lazy, so creating it before
+  navigation is fine. Watch for cycles: two pages autowiring each other
+  as prototypes fail at startup — make one side `@Lazy` if a "back"
+  transition is ever needed.
 
 ## Profiles: env axis and browser axis are separate, never combined into one expression
 
@@ -109,7 +147,10 @@ it, and less readable at a glance. The actual pattern:
 ## Properties: one file per env profile, `grid.url` overridable from the command line
 
 `src/test/resources/application.properties` sets the *default*
-`spring.profiles.active` (currently `chrome,local`).
+`spring.profiles.active` (currently `chrome,local`) and `base.url`, the
+site root every page's `open()` appends its own path to (see "Every page
+implements `open()`" above). `base.url` isn't in `build.gradle`'s forwarded
+`-D` prefix list yet — add `base.` there if it needs overriding per run.
 `application-local.properties` / `application-grid.properties` are the
 per-env overrides — right now `application-grid.properties` only carries
 `grid.url`, but this is where any future env-specific property belongs

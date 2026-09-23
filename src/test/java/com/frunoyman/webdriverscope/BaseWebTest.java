@@ -1,5 +1,6 @@
 package com.frunoyman.webdriverscope;
 
+import com.frunoyman.webdriverscope.pages.WebFormPage;
 import org.openqa.selenium.WebDriver;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -7,6 +8,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.test.context.testng.AbstractTestNGSpringContextTests;
 import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
 
 /**
  * Every test class in this repo extends this one. Same
@@ -23,6 +25,11 @@ public class BaseWebTest extends AbstractTestNGSpringContextTests {
     @Lazy
     @Autowired
     protected ApplicationContext applicationContext;
+
+    @BeforeMethod(alwaysRun = true)
+    public void openEntryPage() {
+        applicationContext.getBean(WebFormPage.class).open();
+    }
 
     @AfterMethod(alwaysRun = true)
     public void quitDriver() {
