@@ -69,7 +69,7 @@ with 10 threads → 10 distinct session ids through one shared page):
 - **Pages are plain singleton `@Component`s** — no `@Scope("prototype")`.
 - **Tests inject pages and the driver with plain `@Autowired`** — no `@Lazy`.
   `BaseWebTest` holds `protected WebDriver driver` (the proxy);
-  `quitDriver()` is just `driver.quit()`.
+  `tearDownTest()` quits it with a plain `driver.quit()`.
 - **Return type `RemoteWebDriver`, not `WebDriver`, on purpose**: the
   proxy is a subclass of the declared type, so casts to
   `JavascriptExecutor`/`TakesScreenshot`/`HasCapabilities` work
@@ -140,14 +140,14 @@ public class SomeNewPage extends BasePage {
   full URL (a page of another site gets its own property, e.g.
   `TablesPage` + `the-internet.url`).
 - **The entry point is opened by the test base, not by tests** —
-  `BaseWebTest`'s `@BeforeMethod openEntryPage()` calls
+  `BaseWebTest`'s `@BeforeMethod setUpTest()` calls
   `getBean(entryPage()).open()` before every test. `entryPage()` returns
   `WebFormPage.class` by default; a test class for another page/site
   overrides it (`TableElementTests` returns `TablesPage.class`). TestNG runs
   `@BeforeMethod` on the same thread as its `@Test`, so this stays
   correct under `parallel="methods"`. Tests start already on the entry
   page; `open()` on other pages is there for jumping straight to them.
-  Before opening, `openEntryPage()` calls `authenticate()` (no-op by
+  Before opening, `setUpTest()` calls `authenticate()` (no-op by
   default) — override it to inject a session/token or log in via UI; a
   subclass's own `@BeforeMethod` would run only after the entry page opened.
 - **Transitions: inject the next page with plain `@Autowired`** — e.g.
@@ -254,6 +254,33 @@ Verified by `TableElementTests` against
 `TablesPage`): same node through `Table` and `WebElement`, headers/rows/
 column reading, rows re-located after a click-to-sort changes the DOM,
 and `WebDriver` injected into a nested `Row`.
+
+## Logging: SLF4J/Logback, MDC per test, element actions logged automatically
+
+- `src/test/resources/logback-spring.xml`: console at INFO; `build/logs/run.log`
+  (whole run) and `build/logs/tests/<Class.method>.log` (one per test,
+  SiftingAppender on MDC `test`) at DEBUG. Every line carries
+  `[thread] [Class.method]`, so parallel output stays readable.
+- `BaseWebTest.setUpTest(Method)` puts MDC `test` (and `session` = the
+  browser session id) and logs `▶ START`; `tearDownTest(ITestResult)` logs
+  `✔ PASS` / `✘ FAIL` with the throwable and stack, then quits, then clears
+  MDC. One @BeforeMethod on purpose — TestNG doesn't order several in a class,
+  and MDC must exist before anything logs. MDC is thread-local; TestNG runs
+  before/test/after on one thread, so it holds under `parallel="methods"`.
+- **Element actions are logged by the framework, not by hand**:
+  `ElementFieldDecorator` wraps every `@FindBy` field (plain, custom, lists)
+  in `LoggingElement` → `[TablesPage.table.rows[1].cells[0]] getText`.
+  Actions (click/sendKeys/clear/submit) at INFO, reads at DEBUG; typed text
+  masked when the field name contains `password`. Page methods only log
+  business meaning if it adds something the element lines don't.
+- **Not `EventFiringDecorator`/`WebDriverListener`**: it returns a proxy that
+  is not a `RemoteWebDriver`, which would break the `TARGET_CLASS` scoped
+  proxy. Logging at the element-decorator level needs no driver change.
+- Selenium's CDP "Unable to find version" WARN (Chrome newer than the bundled
+  devtools module) is silenced to ERROR in the logback config — harmless
+  unless CDP features are used; bump `selenium-java` to fix it for real.
+- Verified 2026-09-23: 9/9 parallel, per-test files created, a deliberately
+  failing test logs ERROR + stack and still quits the browser.
 
 ## Profiles: env axis and browser axis are separate, never combined into one expression
 

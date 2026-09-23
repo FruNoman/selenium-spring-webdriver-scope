@@ -34,10 +34,18 @@ import java.util.List;
 public class ElementFieldDecorator extends DefaultFieldDecorator {
 
     private final AutowireCapableBeanFactory beanFactory;
+    // log name of the element whose fields are being decorated; null for a page
+    private final String parentName;
 
     public ElementFieldDecorator(SearchContext searchContext, AutowireCapableBeanFactory beanFactory) {
+        this(searchContext, beanFactory, null);
+    }
+
+    private ElementFieldDecorator(SearchContext searchContext, AutowireCapableBeanFactory beanFactory,
+                                  String parentName) {
         super(new DefaultElementLocatorFactory(searchContext));
         this.beanFactory = beanFactory;
+        this.parentName = parentName;
     }
 
     /** {@code PageFactory.initElements}, with custom elements searched for inside {@code searchContext}. */
@@ -50,18 +58,30 @@ public class ElementFieldDecorator extends DefaultFieldDecorator {
         if (!isAnnotated(field)) {
             return null;
         }
+        // TablesPage.table, then TablesPage.table.rows[1].cells[0] for nested ones
+        String name = (parentName != null ? parentName : field.getDeclaringClass().getSimpleName())
+                + "." + field.getName();
         if (BaseElement.class.isAssignableFrom(field.getType())) {
-            WebElement root = proxyForLocator(loader, factory.createLocator(field));
-            return create(field.getType().asSubclass(BaseElement.class), root);
+            WebElement root = LoggingElement.wrap(proxyForLocator(loader, factory.createLocator(field)), name);
+            return create(field.getType().asSubclass(BaseElement.class), root, name);
         }
         Class<? extends BaseElement> listElementType = listElementType(field);
         if (listElementType != null) {
-            return proxyForElementList(loader, factory.createLocator(field), listElementType);
+            return proxyForElementList(loader, factory.createLocator(field), listElementType, name);
         }
-        return super.decorate(loader, field);
+        Object decorated = super.decorate(loader, field);
+        if (decorated instanceof WebElement element) {
+            return LoggingElement.wrap(element, name);
+        }
+        if (decorated instanceof List<?> elements) {
+            @SuppressWarnings("unchecked")
+            List<WebElement> webElements = (List<WebElement>) elements;
+            return LoggingElement.wrapList(webElements, name);
+        }
+        return decorated;
     }
 
-    private <T extends BaseElement> T create(Class<T> type, WebElement root) {
+    private <T extends BaseElement> T create(Class<T> type, WebElement root, String name) {
         T element;
         try {
             element = type.getConstructor(WebElement.class).newInstance(root);
@@ -70,7 +90,7 @@ public class ElementFieldDecorator extends DefaultFieldDecorator {
         }
         beanFactory.autowireBean(element);
         // nested @FindBy fields are searched for inside this element, not the whole page
-        initElements(element, element, beanFactory);
+        PageFactory.initElements(new ElementFieldDecorator(element, beanFactory, name), element);
         return element;
     }
 
@@ -80,13 +100,15 @@ public class ElementFieldDecorator extends DefaultFieldDecorator {
      * stale. Each found element is wrapped only when it's actually read,
      * so {@code size()} creates nothing and {@code get(i)} creates one.
      */
-    private List<?> proxyForElementList(ClassLoader loader, ElementLocator locator, Class<? extends BaseElement> type) {
+    private List<?> proxyForElementList(ClassLoader loader, ElementLocator locator, Class<? extends BaseElement> type,
+                                        String name) {
         InvocationHandler handler = (proxy, method, args) -> {
             List<WebElement> found = locator.findElements();
             List<BaseElement> elements = new AbstractList<>() {
                 @Override
                 public BaseElement get(int index) {
-                    return create(type, found.get(index));
+                    String itemName = name + "[" + index + "]";
+                    return create(type, LoggingElement.wrap(found.get(index), itemName), itemName);
                 }
 
                 @Override

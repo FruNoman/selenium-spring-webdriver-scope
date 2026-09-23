@@ -36,7 +36,7 @@ public class WebdriverScope extends SimpleThreadScope {
 
     @Override
     public void registerDestructionCallback(String name, Runnable callback) {
-        // no-op: BaseWebTest.quitDriver() already calls quit() explicitly,
+        // no-op: BaseWebTest.tearDownTest() already calls quit() explicitly,
         // and SimpleThreadScope has no thread-exit hook to run this from anyway.
     }
 }

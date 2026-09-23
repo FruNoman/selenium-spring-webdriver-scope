@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Every line carries the test it came from (MDC "test", set in BaseWebTest)
+  and the thread, so parallel runs stay readable. Console: INFO. Files, all
+  at DEBUG: build/logs/run.log (whole run) and build/logs/tests/<Class.method>.log
+  (one per test — what a reporter would later attach to the test).
+-->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <property name="LOG_DIR" value="build/logs"/>
+    <property name="PATTERN"
+              value="%d{HH:mm:ss.SSS} %-5level [%thread] [%X{test:-main}] %logger{20} - %msg%n"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>INFO</level>
+        </filter>
+        <encoder>
+            <pattern>${PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="RUN_FILE" class="ch.qos.logback.core.FileAppender">
+        <file>${LOG_DIR}/run.log</file>
+        <append>false</append>
+        <encoder>
+            <pattern>${PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="PER_TEST" class="ch.qos.logback.classic.sift.SiftingAppender">
+        <discriminator>
+            <key>test</key>
+            <defaultValue>main</defaultValue>
+        </discriminator>
+        <sift>
+            <appender name="FILE-${test}" class="ch.qos.logback.core.FileAppender">
+                <file>${LOG_DIR}/tests/${test}.log</file>
+                <append>false</append>
+                <encoder>
+                    <pattern>${PATTERN}</pattern>
+                </encoder>
+            </appender>
+        </sift>
+    </appender>
+
+    <!-- framework + tests: everything, including element reads -->
+    <logger name="ui" level="DEBUG"/>
+    <logger name="test" level="DEBUG"/>
+    <logger name="com.frunoyman" level="DEBUG"/>
+    <!-- third-party noise down to what matters -->
+    <logger name="org.openqa.selenium" level="WARN"/>
+    <logger name="io.github.bonigarcia" level="WARN"/>
+    <!-- Chrome newer than Selenium's bundled devtools module: a WARN on every
+         session start, harmless unless CDP features are used -->
+    <logger name="org.openqa.selenium.devtools.CdpVersionFinder" level="ERROR"/>
+    <logger name="org.openqa.selenium.chromium.ChromiumDriver" level="ERROR"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="RUN_FILE"/>
+        <appender-ref ref="PER_TEST"/>
+    </root>
+</configuration>
