@@ -5,10 +5,11 @@ description: How this repo's Spring bean scope, page objects, profile-based brow
 
 # selenium-spring-webdriver-scope
 
-Related skills: `new-web-test` (workflow for writing a test), `run-test`
-(running/diagnosing), `site-map` (what's known about the sites under test),
-`self-analysis` (fixing skills when reality diverged — a Stop hook asks for it),
-`login-strategies` (UI login vs. session/token injection).
+Workflow skills come from the `web-automation` plugin
+([qa-automation-toolkit](https://github.com/FruNoman/qa-automation-toolkit),
+enabled in `.claude/settings.json`): `new-web-test`, `run-test`, `site-map`
+(this repo's map: `.claude/site-map/navigation.md`), `login-strategies`,
+`onboard-new-project`, `self-analysis` + its Stop hook + the `selenium` MCP.
 
 A minimal Spring Boot + Selenium + TestNG repo demonstrating one specific
 problem (a cached `@SpringBootTest` context handing back a dead

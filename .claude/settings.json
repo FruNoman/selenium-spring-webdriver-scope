@@ -1,16 +1,13 @@
 {
-  "enabledMcpjsonServers": ["selenium"],
-  "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/skill-retro-check.sh",
-            "timeout": 30
-          }
-        ]
+  "extraKnownMarketplaces": {
+    "qa-automation-toolkit": {
+      "source": {
+        "source": "github",
+        "repo": "FruNoman/qa-automation-toolkit"
       }
-    ]
+    }
+  },
+  "enabledPlugins": {
+    "web-automation@qa-automation-toolkit": true
   }
 }
