@@ -1,0 +1,4 @@
+# Selenium Grid (RemoteWebDriverConfig). Override per run with GRID_URL /
+# -Dgrid.url without touching this file.
+grid:
+  url: http://localhost:4444/wd/hub

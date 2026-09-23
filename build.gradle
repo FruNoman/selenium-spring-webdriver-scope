@@ -50,7 +50,7 @@ test {
     // line reach the test JVM, so switching local/grid or chrome/firefox
     // never needs a code or properties-file change.
     systemProperties.putAll(
-            System.properties.findAll { k, v -> k.toString().startsWith('spring.') || k.toString().startsWith('grid.') }
+            System.properties.findAll { k, v -> ['spring.', 'grid.', 'test.'].any { k.toString().startsWith(it) } }
     )
 }
 
@@ -70,6 +70,6 @@ tasks.register('testParallel', Test) {
         showStandardStreams = true
     }
     systemProperties.putAll(
-            System.properties.findAll { k, v -> k.toString().startsWith('spring.') || k.toString().startsWith('grid.') }
+            System.properties.findAll { k, v -> ['spring.', 'grid.', 'test.'].any { k.toString().startsWith(it) } }
     )
 }

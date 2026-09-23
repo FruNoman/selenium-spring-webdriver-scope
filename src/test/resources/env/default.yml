@@ -1,0 +1,9 @@
+# Test environment "default": where the apps under test live.
+# Add one file per environment (env/stage.yml, env/dev.yml, …) with the same
+# keys and select it with -Dtest.env=<name> / TEST_ENV=<name>.
+# URLs and non-secret per-env settings only — credentials come from env vars.
+base:
+  url: https://www.selenium.dev/selenium/web/
+
+the-internet:
+  url: https://the-internet.herokuapp.com/

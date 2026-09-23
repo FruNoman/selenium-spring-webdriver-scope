@@ -1,7 +1,8 @@
 # Navigation map
 
 Legend: ✅ verified live (date) · plain = read from code · ⚠ unconfirmed.
-One section per site. Base URLs come from `src/test/resources/application.properties`.
+One section per site. Base URLs come from the active test-env file
+`src/test/resources/env/<test.env>.yml` (default: `env/default.yml`).
 
 ## selenium.dev test pages — `base.url` = `https://www.selenium.dev/selenium/web/`
 

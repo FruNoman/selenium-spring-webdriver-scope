@@ -317,26 +317,34 @@ it, and less readable at a glance. The actual pattern:
   active at a time (only one env profile), so there's no registration
   collision.
 
-## Properties: one file per env profile, `grid.url` overridable from the command line
+## Configuration: YAML, three independent axes, one env file per test environment
 
-`src/test/resources/application.properties` sets the *default*
-`spring.profiles.active` (currently `chrome,local`) and `base.url`, the
-site root every page's `open()` appends its own path to (see "Every page
-implements `open()`" above). `base.url` isn't in `build.gradle`'s forwarded
-`-D` prefix list yet — add `base.` there if it needs overriding per run.
-`application-local.properties` / `application-grid.properties` are the
-per-env overrides — right now `application-grid.properties` only carries
-`grid.url`, but this is where any future env-specific property belongs
-(e.g. a different implicit-wait for a slower CI Grid).
+All config is YAML in `src/test/resources/` (no `.properties` files):
 
-`build.gradle`'s `test`/`testParallel` tasks forward any `-Dspring.*` or
-`-Dgrid.*` system property straight into the test JVM
-(`systemProperties.putAll(System.properties.findAll { ... })`) — this is
-what lets `./gradlew test -Dspring.profiles.active=firefox,grid
--Dgrid.url=http://my-hub:4444/wd/hub` override both without touching any
-properties file. If a new command-line-overridable setting is added,
-extend that `findAll` prefix list rather than special-casing one more
-property name.
+| Axis | Selected by | Files |
+|---|---|---|
+| browser | Spring profile `chrome` / `firefox` | — (method-level `@Profile` on beans) |
+| runner | Spring profile `local` / `grid` | `application-local.yml`, `application-grid.yml` (`grid.url`) |
+| **test environment** (which deployment of the app) | `test.env` — `-Dtest.env=stage` or `TEST_ENV=stage`, default `default` | `env/<name>.yml` — `base.url`, `the-internet.url`, any per-env non-secret setting |
+
+- `application.yml` holds shared defaults (`spring.profiles.active:
+  chrome,local`, `implicit.timeout.seconds`) and
+  `spring.config.import: classpath:env/${test.env:default}.yml`.
+- **New environment = new file** `env/<name>.yml` with the same keys; no code,
+  no profile. Test environments are deliberately *not* Spring profiles —
+  profiles already carry browser × runner, a third axis in the same list
+  becomes unreadable (`chrome,grid,stage,ci`).
+- The import is **not `optional:`** on purpose: an unknown `test.env` fails
+  at startup with `Config data resource 'class path resource
+  [env/<name>.yml]' ... does not exist` instead of running with no URLs.
+- Precedence (verified 2026-09-23): `-D` / env var > `env/<name>.yml` >
+  `application.yml`. So CI can still override a single value
+  (`BASE_URL=...`) on top of a chosen env file.
+- **Secrets never go into env files** — env vars / CI secret store only.
+- `build.gradle` forwards `-Dspring.*`, `-Dgrid.*`, `-Dtest.*` into the test
+  JVM (`systemProperties.putAll(...)`); env vars need no forwarding (Spring
+  binds `TEST_ENV` → `test.env`, `BASE_URL` → `base.url`). A new `-D`
+  namespace → extend that prefix list.
 
 ## Parallel execution: a completely separate suite, task, and Grid capacity — not a flag on the existing one
 
