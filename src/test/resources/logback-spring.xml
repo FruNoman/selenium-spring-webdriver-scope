@@ -52,10 +52,6 @@
     <!-- third-party noise down to what matters -->
     <logger name="org.openqa.selenium" level="WARN"/>
     <logger name="io.github.bonigarcia" level="WARN"/>
-    <!-- Chrome newer than Selenium's bundled devtools module: a WARN on every
-         session start, harmless unless CDP features are used -->
-    <logger name="org.openqa.selenium.devtools.CdpVersionFinder" level="ERROR"/>
-    <logger name="org.openqa.selenium.chromium.ChromiumDriver" level="ERROR"/>
 
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>

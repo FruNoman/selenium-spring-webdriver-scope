@@ -288,9 +288,9 @@ and `WebDriver` injected into a nested `Row`.
 - **Not `EventFiringDecorator`/`WebDriverListener`**: it returns a proxy that
   is not a `RemoteWebDriver`, which would break the `TARGET_CLASS` scoped
   proxy. Logging at the element-decorator level needs no driver change.
-- Selenium's CDP "Unable to find version" WARN (Chrome newer than the bundled
-  devtools module) is silenced to ERROR in the logback config — harmless
-  unless CDP features are used; bump `selenium-java` to fix it for real.
+- Selenium's CDP "Unable to find version" WARN appeared while `selenium-java`
+  (4.25) was older than Chrome; fixed for real by bumping to 4.49.0 — keep
+  `selenium-java` current instead of silencing that logger.
 - Verified 2026-09-23: 9/9 parallel, per-test files; a failing test body →
   FAIL + stack; a failing `@BeforeMethod` → `setUpTest failed` + stack + SKIP;
   browsers quit in both cases.
