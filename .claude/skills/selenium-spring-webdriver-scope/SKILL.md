@@ -1,6 +1,6 @@
 ---
 name: selenium-spring-webdriver-scope
-description: How this repo's Spring bean scope, page objects, profile-based browser/env switching, and parallel-vs-sequential test execution fit together, plus the non-obvious findings from building it (built-in WebDriverScope isn't thread-scoped, the hub's pretty-printed /status JSON breaks naive grep, class-level vs method-level @Profile). Use whenever adding a new page object, a new browser/env combination, wiring up parallel tests, or touching WebDriverConfig/RemoteWebDriverConfig.
+description: How this repo's Spring bean scope, page objects, profile-based browser/env switching, and parallel-vs-sequential test execution fit together, plus the non-obvious findings from building it (built-in WebDriverScope isn't thread-scoped, the hub's pretty-printed /status JSON breaks naive grep, class-level vs method-level @Profile), and custom @FindBy elements (Table-style components built by ElementFieldDecorator). Use whenever adding a new page object or custom element, a new browser/env combination, wiring up parallel tests, or touching WebDriverConfig/RemoteWebDriverConfig.
 ---
 
 # selenium-spring-webdriver-scope
@@ -56,7 +56,10 @@ Every page extends `pages/BasePage.java`:
 public class SomeNewPage extends BasePage {
 
     @FindBy(id = "whatever")
-    public WebElement someField;
+    private WebElement someField;
+
+    @FindBy(css = "table")
+    private Table someTable;          // custom element, same @FindBy
 
     @Override
     public SomeNewPage open() {
@@ -64,7 +67,7 @@ public class SomeNewPage extends BasePage {
         return this;
     }
 
-    // methods that use someField
+    // methods / getters that use someField, someTable
 }
 ```
 
@@ -76,8 +79,9 @@ public class SomeNewPage extends BasePage {
   page needs a fresh instance per request, same underlying reason
   `WebDriver` itself needs recycling.
 - `BasePage` supplies `@Autowired protected WebDriver driver` +
-  a `@PostConstruct` that runs `PageFactory.initElements(driver, this)` so
-  `@FindBy` fields on the subclass resolve. No `LoadableComponent`, no
+  a `@PostConstruct` that runs `ElementFieldDecorator.initElements(driver,
+  this, beanFactory)` so `@FindBy` fields on the subclass resolve — both
+  plain `WebElement`s and custom elements (see "Custom elements" below). No `LoadableComponent`, no
   `load()`/`isLoaded()` lifecycle — deliberately left out, see README's
   comparison with the richer `sem`/`backend-automation-framework` version
   for the tradeoff (their version has page-navigation-assertion baked in,
@@ -100,6 +104,12 @@ public class SomeNewPage extends BasePage {
   test genuinely needs one instance for its whole body, take a real one
   up front with `applicationContext.getBean(SomePage.class)` (or keep the
   `this` returned by a fluent method) instead of adding state to the page.
+- **Fields private, access through methods only** — the `@Lazy` proxy a
+  test holds is a CGLIB subclass that intercepts *method calls*. Reading a
+  public field through it (`tablesPage.table`) returns the proxy's own
+  field, which is always `null` — found the hard way, NPE in every test.
+  Expose elements via getters (`getTable()`) or, better, via page methods
+  that do the work.
 - **Every page implements `open()`** — `BasePage` declares
   `public abstract BasePage open()` and injects `@Value("${base.url}")
   protected String baseUrl` (the site root, trailing slash included).
@@ -108,7 +118,9 @@ public class SomeNewPage extends BasePage {
   full URL.
 - **The entry point is opened by the test base, not by tests** —
   `BaseWebTest`'s `@BeforeMethod openEntryPage()` calls
-  `getBean(WebFormPage.class).open()` before every test. TestNG runs
+  `getBean(entryPage()).open()` before every test. `entryPage()` returns
+  `WebFormPage.class` by default; a test class for another page/site
+  overrides it (`TableElementTests` returns `TablesPage.class`). TestNG runs
   `@BeforeMethod` on the same thread as its `@Test`, so this stays
   correct under `parallel="methods"`. Tests start already on the entry
   page; `open()` on other pages is there for jumping straight to them.
@@ -121,6 +133,103 @@ public class SomeNewPage extends BasePage {
   navigation is fine. Watch for cycles: two pages autowiring each other
   as prototypes fail at startup — make one side `@Lazy` if a "back"
   transition is ever needed.
+
+## Custom elements: same `@FindBy`, `WebElement` and components side by side
+
+Code lives in `src/main/java/.../elements/`. Goal: **the standard Selenium
+annotations are never replaced or wrapped** — `@FindBy`/`@FindBys`/`@FindAll`
+populate a custom element exactly like a `WebElement`:
+
+```java
+@FindBy(id = "table1") private Table table;        // custom element
+@FindBy(id = "table1") private WebElement rawTable; // plain, unchanged
+@FindBy(css = "tbody tr") private List<Row> rows;   // list of custom elements
+@FindBy(css = "thead th") private List<WebElement> headers; // plain list
+```
+
+### How it works
+
+- **`BaseElement`** — abstract base, `implements WebElement, WrapsElement,
+  WrapsDriver, Locatable`. Holds `protected final WebElement root`
+  (a Selenium locator proxy, re-finds the node on every call) received
+  through the constructor, and **only delegates** every `WebElement`
+  method to it. Because it *is* a `WebElement`, Selenium's own API takes it
+  as-is: `ExpectedConditions.visibilityOf(table)`, `Actions`, JS args
+  (`WrapsElement` lets them unwrap to the real node).
+- **`ElementFieldDecorator extends DefaultFieldDecorator`** — the single
+  piece of machinery, no factories. Per field:
+  1. no `@FindBy`/`@FindBys`/`@FindAll` → returns `null`, field untouched.
+     (Plain PageFactory would decorate an un-annotated `WebElement` field
+     with an id-or-name locator from its name — including `root`.)
+  2. type is a `BaseElement` subclass → `proxyForLocator` + `create()`.
+  3. `List<X extends BaseElement>` → a `java.lang.reflect.Proxy` `List`
+     that re-runs `locator.findElements()` on **every** call and wraps
+     elements lazily via an `AbstractList` view (`size()` creates nothing,
+     `get(i)` creates one). Same "never stale" contract as Selenium's
+     `List<WebElement>`.
+  4. anything else (`WebElement`, `List<WebElement>`) → `super.decorate()`.
+- **`create()`**: `type.getConstructor(WebElement.class).newInstance(root)`
+  → `beanFactory.autowireBean(element)` → recursive
+  `initElements(element, element, beanFactory)`, i.e. nested `@FindBy`s
+  are searched **inside** the element (`tbody tr` finds only this table's
+  rows). Careful: an XPath starting with `//` still searches the whole
+  document — use `.//` for "inside this element".
+- **Elements are not Spring beans** — no `@Component`/`@Scope` on them.
+  `autowireBean` still injects `@Autowired` fields (`BaseElement` gets
+  `WebDriver driver`, the current thread's one, so `webdriverscope`
+  stays correct); add more `@Autowired` fields to a subclass if needed.
+
+### Adding a new element — `Table` as the reference
+
+```java
+public class Table extends BaseElement {
+
+    @FindBy(css = "thead th")
+    private List<WebElement> headers;   // plain WebElements inside
+
+    @FindBy(css = "tbody tr")
+    private List<Row> rows;             // nested custom elements
+
+    public Table(WebElement root) {     // required: public (WebElement) ctor
+        super(root);
+    }
+
+    public List<String> getHeaders() {
+        return headers.stream().map(WebElement::getText).toList();
+    }
+
+    public List<String> getColumn(String header) {
+        int index = columnIndex(header);
+        return rows.stream().map(row -> row.getCellText(index)).toList();
+    }
+
+    public Table sortBy(String header) {
+        headers.get(columnIndex(header)).click();
+        return this;
+    }
+    // ...
+}
+```
+
+Rules:
+- extend `BaseElement`, keep a **public `(WebElement root)` constructor**
+  (missing one → `IllegalStateException` naming the class at page init);
+- nested locators are relative to the element (`css` as-is, XPath with `.//`);
+- **stateless**, like pages: the element and every `List<...>` re-locate
+  on each call, so never cache found elements or texts in fields;
+- behaviour specific to one widget lives in that widget's class — never
+  override `click()`/`isSelected()` etc. in `BaseElement` (the old
+  `backend-automation-framework` `WebComponent` did, which broke plain
+  checkboxes and changed every click to `Actions`);
+- no generic elements (`Foo<T>` fields resolved through type variables)
+  until there's a real need — the old framework carried that machinery
+  unused.
+
+Verified by `TableElementTests` against
+`https://the-internet.herokuapp.com/tables` (`the-internet.url` property,
+`TablesPage`): same node through `Table` and `WebElement`, headers/rows/
+column reading, rows re-located after a click-to-sort changes the DOM,
+and `WebDriver` injected into a nested `Row`.
 
 ## Profiles: env axis and browser axis are separate, never combined into one expression
 

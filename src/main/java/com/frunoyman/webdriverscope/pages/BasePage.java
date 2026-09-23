@@ -1,10 +1,11 @@
 package com.frunoyman.webdriverscope.pages;
 
+import com.frunoyman.webdriverscope.elements.ElementFieldDecorator;
 import jakarta.annotation.PostConstruct;
 import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.support.PageFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 
 /**
  * Common base for every page object in this repo. Every subclass must
@@ -18,6 +19,9 @@ public abstract class BasePage {
     @Autowired
     protected WebDriver driver;
 
+    @Autowired
+    private AutowireCapableBeanFactory beanFactory;
+
     @Value("${base.url}")
     protected String baseUrl;
 
@@ -29,6 +33,6 @@ public abstract class BasePage {
 
     @PostConstruct
     private void init() {
-        PageFactory.initElements(this.driver, this);
+        ElementFieldDecorator.initElements(driver, this, beanFactory);
     }
 }

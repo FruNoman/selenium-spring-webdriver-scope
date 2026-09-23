@@ -4,6 +4,7 @@
         <classes>
             <class name="com.frunoyman.webdriverscope.FirstFormTests"/>
             <class name="com.frunoyman.webdriverscope.SecondFormTests"/>
+            <class name="com.frunoyman.webdriverscope.TableElementTests"/>
         </classes>
     </test>
 </suite>

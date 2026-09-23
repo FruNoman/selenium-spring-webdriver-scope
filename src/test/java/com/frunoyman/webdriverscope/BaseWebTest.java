@@ -1,5 +1,6 @@
 package com.frunoyman.webdriverscope;
 
+import com.frunoyman.webdriverscope.pages.BasePage;
 import com.frunoyman.webdriverscope.pages.WebFormPage;
 import org.openqa.selenium.WebDriver;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,9 +27,14 @@ public class BaseWebTest extends AbstractTestNGSpringContextTests {
     @Autowired
     protected ApplicationContext applicationContext;
 
+    /** The page every test starts on. Override for tests of another site/page. */
+    protected Class<? extends BasePage> entryPage() {
+        return WebFormPage.class;
+    }
+
     @BeforeMethod(alwaysRun = true)
     public void openEntryPage() {
-        applicationContext.getBean(WebFormPage.class).open();
+        applicationContext.getBean(entryPage()).open();
     }
 
     @AfterMethod(alwaysRun = true)
