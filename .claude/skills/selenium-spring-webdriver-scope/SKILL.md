@@ -7,7 +7,8 @@ description: How this repo's Spring bean scope, page objects, profile-based brow
 
 Related skills: `new-web-test` (workflow for writing a test), `run-test`
 (running/diagnosing), `site-map` (what's known about the sites under test),
-`self-analysis` (fixing skills when reality diverged — a Stop hook asks for it).
+`self-analysis` (fixing skills when reality diverged — a Stop hook asks for it),
+`login-strategies` (UI login vs. session/token injection).
 
 A minimal Spring Boot + Selenium + TestNG repo demonstrating one specific
 problem (a cached `@SpringBootTest` context handing back a dead
@@ -145,6 +146,9 @@ public class SomeNewPage extends BasePage {
   `@BeforeMethod` on the same thread as its `@Test`, so this stays
   correct under `parallel="methods"`. Tests start already on the entry
   page; `open()` on other pages is there for jumping straight to them.
+  Before opening, `openEntryPage()` calls `authenticate()` (no-op by
+  default) — override it to inject a session/token or log in via UI; a
+  subclass's own `@BeforeMethod` would run only after the entry page opened.
 - **Transitions: inject the next page with plain `@Autowired`** — e.g.
   `WebFormPage` has `@Autowired private SubmittedFormPage submittedFormPage`
   and `submit()` clicks, then returns it. Both are singletons, so a "back"

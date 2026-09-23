@@ -34,8 +34,18 @@ public class BaseWebTest extends AbstractTestNGSpringContextTests {
         return WebFormPage.class;
     }
 
+    /**
+     * Runs before the entry page is opened — the place to put the browser
+     * into a logged-in state (inject a session cookie / token, or log in
+     * through the UI). No-op by default. A subclass's own @BeforeMethod
+     * would run only after this class's one, i.e. after open() — too late.
+     */
+    protected void authenticate() {
+    }
+
     @BeforeMethod(alwaysRun = true)
     public void openEntryPage() {
+        authenticate();
         applicationContext.getBean(entryPage()).open();
     }
 
