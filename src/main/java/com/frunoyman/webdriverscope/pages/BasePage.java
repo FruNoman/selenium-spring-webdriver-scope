@@ -8,11 +8,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 
 /**
- * Common base for every page object in this repo. Every subclass must
- * also be {@code @Component @Scope("prototype")} — see {@link WebFormPage}
- * for why: a singleton page bean would keep the {@code driver} it got
- * wired with at first creation forever, even after WebDriverScope
- * recycles that driver for a later test.
+ * Common base for every page object in this repo. Pages are plain
+ * singleton {@code @Component}s: {@code driver} is the scoped proxy from
+ * WebDriverConfig/RemoteWebDriverConfig, which resolves the current
+ * thread's live browser on every call, so one page instance serves every
+ * test and every thread. The flip side: a page is shared across parallel
+ * threads, so it must not keep any state of its own in fields.
  */
 public abstract class BasePage {
 

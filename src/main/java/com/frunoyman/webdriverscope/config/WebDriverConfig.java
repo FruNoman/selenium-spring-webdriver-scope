@@ -1,7 +1,7 @@
 package com.frunoyman.webdriverscope.config;
 
 import io.github.bonigarcia.wdm.WebDriverManager;
-import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.remote.RemoteWebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.firefox.FirefoxDriver;
@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Profile;
 import org.springframework.context.annotation.Scope;
+import org.springframework.context.annotation.ScopedProxyMode;
 
 import java.time.Duration;
 
@@ -37,6 +38,14 @@ import java.time.Duration;
  *
  * {@code @Lazy} so the browser only actually launches the first time a
  * test asks for it, not at context startup.
+ *
+ * {@code proxyMode = TARGET_CLASS}: whoever autowires {@code WebDriver}
+ * (pages, elements, tests) gets one CGLIB proxy, not a browser. Every
+ * call on it goes through {@code WebdriverScope.get()}, i.e. lands on the
+ * current thread's live driver — so the holders themselves can be plain
+ * singletons. Return type is {@code RemoteWebDriver}, not
+ * {@code WebDriver}, so the proxy is a {@code RemoteWebDriver} subclass
+ * and casts to {@code JavascriptExecutor}/{@code TakesScreenshot} work.
  */
 @Lazy
 @Configuration
@@ -47,24 +56,24 @@ public class WebDriverConfig {
     private int implicitTimeoutSeconds;
 
     @Bean
-    @Scope("webdriverscope")
+    @Scope(value = "webdriverscope", proxyMode = ScopedProxyMode.TARGET_CLASS)
     @Profile("chrome")
-    public WebDriver chromeDriver() {
+    public RemoteWebDriver chromeDriver() {
         WebDriverManager.chromedriver().setup();
         ChromeOptions options = new ChromeOptions();
         options.addArguments("--window-size=1920,1080");
-        WebDriver driver = new ChromeDriver(options);
+        RemoteWebDriver driver = new ChromeDriver(options);
         driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(implicitTimeoutSeconds));
         return driver;
     }
 
     @Bean
-    @Scope("webdriverscope")
+    @Scope(value = "webdriverscope", proxyMode = ScopedProxyMode.TARGET_CLASS)
     @Profile("firefox")
-    public WebDriver firefoxDriver() {
+    public RemoteWebDriver firefoxDriver() {
         WebDriverManager.firefoxdriver().setup();
         FirefoxOptions options = new FirefoxOptions();
-        WebDriver driver = new FirefoxDriver(options);
+        RemoteWebDriver driver = new FirefoxDriver(options);
         driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(implicitTimeoutSeconds));
         return driver;
     }

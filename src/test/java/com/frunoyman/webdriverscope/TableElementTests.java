@@ -8,7 +8,6 @@ import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.testng.annotations.Test;
 
 import java.time.Duration;
@@ -23,13 +22,8 @@ import static org.testng.Assert.assertNotNull;
  */
 public class TableElementTests extends BaseWebTest {
 
-    @Lazy
     @Autowired
     private TablesPage tablesPage;
-
-    @Lazy
-    @Autowired
-    private WebDriver driver;
 
     @Override
     protected Class<? extends BasePage> entryPage() {

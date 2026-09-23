@@ -6,7 +6,6 @@ import org.openqa.selenium.WebDriver;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.test.context.testng.AbstractTestNGSpringContextTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -23,9 +22,12 @@ import org.testng.annotations.BeforeMethod;
 @SpringBootTest(classes = DemoApplication.class)
 public class BaseWebTest extends AbstractTestNGSpringContextTests {
 
-    @Lazy
     @Autowired
     protected ApplicationContext applicationContext;
+
+    // scoped proxy — always the current thread's live driver
+    @Autowired
+    protected WebDriver driver;
 
     /** The page every test starts on. Override for tests of another site/page. */
     protected Class<? extends BasePage> entryPage() {
@@ -39,6 +41,6 @@ public class BaseWebTest extends AbstractTestNGSpringContextTests {
 
     @AfterMethod(alwaysRun = true)
     public void quitDriver() {
-        applicationContext.getBean(WebDriver.class).quit();
+        driver.quit();
     }
 }

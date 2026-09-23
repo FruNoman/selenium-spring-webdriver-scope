@@ -39,12 +39,48 @@ scope's own bytecode explains why: one `synchronized Map<String,Object>`
 keyed by bean name, no thread awareness at all. With the custom scope
 back, 10 threads → 10 distinct session ids, all pass.
 
-**Rule of thumb for any new `WebDriver`-producing `@Bean`**: if it might
-ever run under `parallel=`, give it `@Scope("webdriverscope")`. "Local"
+**Rule of thumb for any new `WebDriver`-producing `@Bean`**: declare it
+exactly like the existing four —
+`@Scope(value = "webdriverscope", proxyMode = ScopedProxyMode.TARGET_CLASS)`
+with return type `RemoteWebDriver` (see next section for why both). "Local"
 does not imply "sequential" — `WebDriverConfig` (local) carries the same
 annotation as `RemoteWebDriverConfig` (grid) for exactly this reason, even
 though the plain sequential demo (`./gradlew test`) doesn't strictly need
 it.
+
+## The `WebDriver` bean is a scoped proxy — everything else is a plain singleton
+
+Every `WebDriver` `@Bean` (`WebDriverConfig`, `RemoteWebDriverConfig`) is
+`@Scope(value = "webdriverscope", proxyMode = ScopedProxyMode.TARGET_CLASS)`.
+Whoever autowires `WebDriver` — pages, elements, `BaseWebTest` — receives
+**one CGLIB proxy, not a browser**. Every call on it goes through
+`WebdriverScope.get()`, which returns the current thread's driver and
+creates a new one if that session was already `quit()`. So the question
+"which browser?" is answered **per call**, not when the holder was created.
+
+Consequences, all verified (local `test`, Grid `test`, Grid `testParallel`
+with 10 threads → 10 distinct session ids through one shared page):
+- **Pages are plain singleton `@Component`s** — no `@Scope("prototype")`.
+- **Tests inject pages and the driver with plain `@Autowired`** — no `@Lazy`.
+  `BaseWebTest` holds `protected WebDriver driver` (the proxy);
+  `quitDriver()` is just `driver.quit()`.
+- **Return type `RemoteWebDriver`, not `WebDriver`, on purpose**: the
+  proxy is a subclass of the declared type, so casts to
+  `JavascriptExecutor`/`TakesScreenshot`/`HasCapabilities` work
+  (`SecondFormTests` checks this). With `ScopedProxyMode.INTERFACES` and a
+  `WebDriver` return type those casts would throw `ClassCastException`.
+  Still not possible: `instanceof ChromeDriver` on the proxy.
+- `SecondFormTests.pagesAreSingletonsAndTheDriverProxyIsARealRemoteWebDriver`
+  guards both properties — if it fails, someone changed the bean scope.
+
+History, so nobody "fixes" it back: before this, the driver field held
+the real browser object, which forced every page to be `prototype`,
+every test field to be `@Lazy`, re-created the page on every call and
+made public page fields read as `null` through the `@Lazy` CGLIB proxy.
+The idea came from the Sphise `automation-tests` framework, whose pages
+are singletons because Selenide's `$()` resolves the thread's driver per
+call (their `@Scope(proxyMode = TARGET_CLASS)` on the abstract
+`PageBaseCore` is actually inert — `@Scope` is not `@Inherited`).
 
 ## Adding a new page object
 
@@ -52,7 +88,6 @@ Every page extends `pages/BasePage.java`:
 
 ```java
 @Component
-@Scope("prototype")
 public class SomeNewPage extends BasePage {
 
     @FindBy(id = "whatever")
@@ -67,55 +102,37 @@ public class SomeNewPage extends BasePage {
         return this;
     }
 
-    // methods / getters that use someField, someTable
+    // methods that use someField, someTable
 }
 ```
 
-- `@Component @Scope("prototype")` **on the subclass, not on `BasePage`**
-  (`BasePage` is abstract, never a bean itself). `prototype` is not
-  optional: a singleton page bean gets its `driver` field wired once, at
-  first creation, and keeps pointing at that driver forever — even after
-  `WebdriverScope`/the built-in scope hands out a fresh one later. Every
-  page needs a fresh instance per request, same underlying reason
-  `WebDriver` itself needs recycling.
-- `BasePage` supplies `@Autowired protected WebDriver driver` +
+- `@Component` **on the subclass, not on `BasePage`** (`BasePage` is
+  abstract, never a bean itself). Singleton is correct — see the section
+  above; don't add `@Scope("prototype")`.
+- `BasePage` supplies `@Autowired protected WebDriver driver` (the proxy) +
   a `@PostConstruct` that runs `ElementFieldDecorator.initElements(driver,
   this, beanFactory)` so `@FindBy` fields on the subclass resolve — both
-  plain `WebElement`s and custom elements (see "Custom elements" below). No `LoadableComponent`, no
+  plain `WebElement`s and custom elements (see "Custom elements" below).
+  Locators are created once and search through the proxy, so they always
+  hit the current thread's browser. No `LoadableComponent`, no
   `load()`/`isLoaded()` lifecycle — deliberately left out, see README's
-  comparison with the richer `sem`/`backend-automation-framework` version
-  for the tradeoff (their version has page-navigation-assertion baked in,
-  at the cost of being a heavier base and needing its own `@Lazy` on the
-  driver field, which this repo's version doesn't need).
-- **Test-side injection must be `@Lazy @Autowired`, never plain
-  `@Autowired`** — same reasoning as the page's own prototype scope: a
-  non-lazy field on a test class (itself effectively used like a
-  singleton across `@Test` methods within a run) would freeze to the
-  first-ever-resolved page instance. `@Lazy` makes it a proxy that calls
-  `getBean()` fresh on every method invocation.
-- **Page objects must be stateless** — a direct consequence of the
-  bullet above: every call through the `@Lazy` proxy (e.g.
-  `webFormPage.typeIntoTextField(...)` then `webFormPage.getTextFieldValue()`)
-  lands on a *different* `prototype` instance. That's harmless as long as
-  a page only holds `@FindBy` fields (lazy locators, re-resolved against
-  the live DOM on each access) and the inherited `driver` (the same
-  thread's instance either way). Any other field — a cached value, a
-  "last entered text", a counter — silently resets between calls. If a
-  test genuinely needs one instance for its whole body, take a real one
-  up front with `applicationContext.getBean(SomePage.class)` (or keep the
-  `this` returned by a fluent method) instead of adding state to the page.
-- **Fields private, access through methods only** — the `@Lazy` proxy a
-  test holds is a CGLIB subclass that intercepts *method calls*. Reading a
-  public field through it (`tablesPage.table`) returns the proxy's own
-  field, which is always `null` — found the hard way, NPE in every test.
-  Expose elements via getters (`getTable()`) or, better, via page methods
-  that do the work.
+  comparison with the richer `sem`/`backend-automation-framework` version.
+- **Page objects must be stateless — stricter now than before.** One page
+  instance is shared by every test *and every parallel thread*. `@FindBy`
+  fields (lazy locators) and `driver` (the proxy) are safe; any other
+  field — a cached value, a "last entered text", a counter — is shared
+  mutable state that parallel tests will overwrite under each other. Keep
+  per-test state in the test method, pass it into page methods.
+- **Fields private, access through methods** — plain encapsulation now
+  (the `@Lazy`-proxy `null`-field trap is gone), but still the convention:
+  expose behaviour (`getColumn(...)`, `submit()`), getters only when needed.
 - **Every page implements `open()`** — `BasePage` declares
   `public abstract BasePage open()` and injects `@Value("${base.url}")
   protected String baseUrl` (the site root, trailing slash included).
   Each subclass overrides `open()` with a covariant return type (itself)
   and does `driver.get(baseUrl + "<its path>")`. Pages never hardcode a
-  full URL.
+  full URL (a page of another site gets its own property, e.g.
+  `TablesPage` + `the-internet.url`).
 - **The entry point is opened by the test base, not by tests** —
   `BaseWebTest`'s `@BeforeMethod openEntryPage()` calls
   `getBean(entryPage()).open()` before every test. `entryPage()` returns
@@ -126,13 +143,9 @@ public class SomeNewPage extends BasePage {
   page; `open()` on other pages is there for jumping straight to them.
 - **Transitions: inject the next page with plain `@Autowired`** — e.g.
   `WebFormPage` has `@Autowired private SubmittedFormPage submittedFormPage`
-  and `submit()` clicks, then returns it. No `@Lazy` needed here (unlike on
-  test classes): the target is prototype too, so every `WebFormPage`
-  instance gets its own `SubmittedFormPage` wired to the same thread's
-  driver, and its `@FindBy` fields are lazy, so creating it before
-  navigation is fine. Watch for cycles: two pages autowiring each other
-  as prototypes fail at startup — make one side `@Lazy` if a "back"
-  transition is ever needed.
+  and `submit()` clicks, then returns it. Both are singletons, so a "back"
+  transition (two pages autowiring each other) is fine too — Spring
+  resolves field-injection cycles between singletons.
 
 ## Custom elements: same `@FindBy`, `WebElement` and components side by side
 
@@ -176,8 +189,10 @@ populate a custom element exactly like a `WebElement`:
   document — use `.//` for "inside this element".
 - **Elements are not Spring beans** — no `@Component`/`@Scope` on them.
   `autowireBean` still injects `@Autowired` fields (`BaseElement` gets
-  `WebDriver driver`, the current thread's one, so `webdriverscope`
-  stays correct); add more `@Autowired` fields to a subclass if needed.
+  `WebDriver driver` — the same scoped proxy pages get); add more
+  `@Autowired` fields to a subclass if needed. Elements on a page are
+  created once with the page, so they are shared across threads too:
+  same stateless rule.
 
 ### Adding a new element — `Table` as the reference
 
@@ -314,11 +329,13 @@ scope itself is correct).
    that isn't in it). To run one class in isolation for debugging,
    temporarily comment out the `suites` line rather than trusting
    `--tests`.
-3. **A `@Lazy @Autowired` field cannot be cast to the concrete driver
-   class** — `((RemoteWebDriver) driver).getSessionId()` on a `@Lazy
-   WebDriver driver` field throws `ClassCastException`, because the lazy
-   injection proxy only implements the declared type (`WebDriver`), never
-   the runtime concrete class. Use `driver.toString()` instead when you
+3. **A proxied driver only has the type the proxy was built from** —
+   a `@Lazy` or `ScopedProxyMode.INTERFACES` proxy over a `WebDriver`
+   return type implements `WebDriver` only, so
+   `((RemoteWebDriver) driver).getSessionId()` or `(JavascriptExecutor) driver`
+   throws `ClassCastException`. That's why the beans return
+   `RemoteWebDriver` with `TARGET_CLASS` (casts to `RemoteWebDriver` and
+   its interfaces work); `instanceof ChromeDriver` still never will. Use `driver.toString()` instead when you
    need to show/log a session id — `ChromeDriver`/`RemoteWebDriver`'s own
    `toString()` already includes it.
 4. **GitHub Actions' `ubuntu-latest` runners already have Docker, `docker

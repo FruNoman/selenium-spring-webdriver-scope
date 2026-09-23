@@ -1,6 +1,5 @@
 package com.frunoyman.webdriverscope.config;
 
-import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.firefox.FirefoxOptions;
 import org.openqa.selenium.remote.RemoteWebDriver;
@@ -10,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Profile;
 import org.springframework.context.annotation.Scope;
+import org.springframework.context.annotation.ScopedProxyMode;
 
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -30,6 +30,8 @@ import java.time.Duration;
  * cached contexts, wrong for TestNG {@code parallel="methods"}, where
  * multiple threads would fight over the same browser. WebdriverScope
  * extends SimpleThreadScope, so each thread gets its own driver.
+ *
+ * Proxied the same way as {@link WebDriverConfig}'s beans (see there).
  */
 @Lazy
 @Configuration
@@ -43,22 +45,22 @@ public class RemoteWebDriverConfig {
     private int implicitTimeoutSeconds;
 
     @Bean
-    @Scope("webdriverscope")
+    @Scope(value = "webdriverscope", proxyMode = ScopedProxyMode.TARGET_CLASS)
     @Profile("chrome")
-    public WebDriver chromeDriver() throws MalformedURLException {
+    public RemoteWebDriver chromeDriver() throws MalformedURLException {
         ChromeOptions options = new ChromeOptions();
         options.addArguments("--window-size=1920,1080");
-        WebDriver driver = new RemoteWebDriver(gridUrl(), options);
+        RemoteWebDriver driver = new RemoteWebDriver(gridUrl(), options);
         driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(implicitTimeoutSeconds));
         return driver;
     }
 
     @Bean
-    @Scope("webdriverscope")
+    @Scope(value = "webdriverscope", proxyMode = ScopedProxyMode.TARGET_CLASS)
     @Profile("firefox")
-    public WebDriver firefoxDriver() throws MalformedURLException {
+    public RemoteWebDriver firefoxDriver() throws MalformedURLException {
         FirefoxOptions options = new FirefoxOptions();
-        WebDriver driver = new RemoteWebDriver(gridUrl(), options);
+        RemoteWebDriver driver = new RemoteWebDriver(gridUrl(), options);
         driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(implicitTimeoutSeconds));
         return driver;
     }

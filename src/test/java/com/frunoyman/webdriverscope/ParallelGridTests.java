@@ -1,9 +1,7 @@
 package com.frunoyman.webdriverscope;
 
 import com.frunoyman.webdriverscope.pages.WebFormPage;
-import org.openqa.selenium.WebDriver;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
@@ -21,13 +19,8 @@ import static org.testng.Assert.assertEquals;
  */
 public class ParallelGridTests extends BaseWebTest {
 
-    @Lazy
     @Autowired
     private WebFormPage webFormPage;
-
-    @Lazy
-    @Autowired
-    private WebDriver driver;
 
     @Test
     public void test01() { assertFreshSession(); }

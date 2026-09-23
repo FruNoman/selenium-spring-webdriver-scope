@@ -88,14 +88,16 @@ navigation/assertion lifecycle — just the driver wiring every page needs.
 [`WebFormPage`](src/main/java/com/frunoyman/webdriverscope/pages/WebFormPage.java) —
 a page object over
 [selenium.dev's own web-form demo page](https://www.selenium.dev/selenium/web/web-form.html),
-extending `BasePage`. It's deliberately `@Component @Scope("prototype")`
-— a singleton page bean would get its `driver` field wired once, at
-first creation, and keep pointing at that driver forever, even after
-`WebDriverScope` recycles it. `prototype` means a fresh `WebFormPage`
-(with a fresh `driver` reference) every time one is requested. Test
-classes then inject it with `@Lazy @Autowired`, same reasoning as the
-`driver` field itself: without `@Lazy`, the *injection point* would
-freeze to the first prototype instance ever created.
+extending `BasePage`. It's a plain singleton `@Component`, and tests
+inject it with a plain `@Autowired`. That's safe because the `WebDriver`
+bean is declared with `@Scope(value = "webdriverscope", proxyMode =
+ScopedProxyMode.TARGET_CLASS)`: the `driver` field every page holds is a
+proxy, and each call on it is routed to the current thread's live
+browser (a fresh one if the previous session was `quit()`). The page
+never holds a real browser, so it never needs to be re-created —
+the flip side is that a page is shared by all parallel threads and must
+keep no state of its own. (Earlier versions made pages `prototype` and
+test fields `@Lazy` to get the same effect; the proxy replaces both.)
 
 [`FirstFormTests`](src/test/java/com/frunoyman/webdriverscope/FirstFormTests.java)
 and

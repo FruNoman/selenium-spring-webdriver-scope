@@ -2,9 +2,7 @@ package com.frunoyman.webdriverscope;
 
 import com.frunoyman.webdriverscope.pages.SubmittedFormPage;
 import com.frunoyman.webdriverscope.pages.WebFormPage;
-import org.openqa.selenium.WebDriver;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
@@ -16,17 +14,8 @@ import static org.testng.Assert.assertTrue;
  */
 public class FirstFormTests extends BaseWebTest {
 
-    // @Lazy here for the same reason as on `driver` below: WebFormPage is
-    // prototype-scoped, so a plain (non-lazy) @Autowired field would
-    // freeze to the very first instance created, wired to whatever driver
-    // existed back then.
-    @Lazy
     @Autowired
     private WebFormPage webFormPage;
-
-    @Lazy
-    @Autowired
-    private WebDriver driver;
 
     @Test
     public void textFieldStartsEmptyAndAcceptsInput() {
