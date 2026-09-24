@@ -152,9 +152,11 @@ public class SomeNewPage extends BasePage {
   subclass's own `@BeforeMethod` would run only after the entry page opened.
 - **Transitions: inject the next page with plain `@Autowired`** — e.g.
   `WebFormPage` has `@Autowired private SubmittedFormPage submittedFormPage`
-  and `submit()` clicks, then returns it. Both are singletons, so a "back"
-  transition (two pages autowiring each other) is fine too — Spring
-  resolves field-injection cycles between singletons.
+  and `submit()` clicks, then returns it. A "back" transition (two pages
+  autowiring each other) is a circular reference and **fails at startup** —
+  Spring Boot ≥ 2.6 prohibits them by default (verified 2026-09-24 in
+  playground-lab; this line used to claim the opposite). Make the back link
+  `@Lazy @Autowired`.
 
 ## Custom elements: same `@FindBy`, `WebElement` and components side by side
 
@@ -288,9 +290,12 @@ and `WebDriver` injected into a nested `Row`.
 - **Not `EventFiringDecorator`/`WebDriverListener`**: it returns a proxy that
   is not a `RemoteWebDriver`, which would break the `TARGET_CLASS` scoped
   proxy. Logging at the element-decorator level needs no driver change.
-- Selenium's CDP "Unable to find version" WARN appeared while `selenium-java`
-  (4.25) was older than Chrome; fixed for real by bumping to 4.49.0 — keep
-  `selenium-java` current instead of silencing that logger.
+- Selenium's CDP "Unable to find version" WARN went away with the 4.49 bump —
+  but only because a `selenium-devtools-v153` module arrived: the core stayed
+  **4.19.1**, since Spring Boot's BOM downgrades every transitive Selenium
+  module to its managed version. Pin it with `ext['selenium.version']` in
+  build.gradle and check `./gradlew dependencies --configuration
+  testRuntimeClasspath | grep selenium-api` (no `->`). Found 2026-09-24.
 - Verified 2026-09-23: 9/9 parallel, per-test files; a failing test body →
   FAIL + stack; a failing `@BeforeMethod` → `setUpTest failed` + stack + SKIP;
   browsers quit in both cases.

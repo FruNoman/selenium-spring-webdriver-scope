@@ -12,6 +12,11 @@ java {
     targetCompatibility = JavaVersion.VERSION_17
 }
 
+// Spring Boot's BOM manages org.seleniumhq.* (Boot 3.3 → 4.19.1) and silently
+// downgrades every transitive Selenium module to it, whatever selenium-java says.
+// Override the managed version; keep it = the Grid image tag (docker-compose.grid.yml).
+ext['selenium.version'] = '4.49.0'
+
 repositories {
     mavenCentral()
 }
