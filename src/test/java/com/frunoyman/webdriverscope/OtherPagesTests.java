@@ -1,7 +1,10 @@
 package com.frunoyman.webdriverscope;
 
-import org.openqa.selenium.By;
-import org.openqa.selenium.WebElement;
+import com.frunoyman.webdriverscope.pages.FormPage;
+import com.frunoyman.webdriverscope.pages.JavascriptPage;
+import com.frunoyman.webdriverscope.pages.ResultPage;
+import com.frunoyman.webdriverscope.pages.XhtmlTestPage;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
@@ -10,49 +13,47 @@ import static org.testng.Assert.assertTrue;
 /** A few other selenium.dev test pages: one short action per test. */
 public class OtherPagesTests extends BaseWebTest {
 
+    @Autowired
+    private XhtmlTestPage xhtmlTestPage;
+
+    @Autowired
+    private FormPage formPage;
+
+    @Autowired
+    private JavascriptPage javascriptPage;
+
     @Test
     public void readHeading() {
-        driver.get(baseUrl + "xhtmlTest.html");
+        xhtmlTestPage.open();
 
-        assertEquals(driver.findElement(By.tagName("h1")).getText(), "XHTML Might Be The Future");
+        assertEquals(xhtmlTestPage.getHeading(), "XHTML Might Be The Future");
     }
 
     @Test
     public void followLink() {
-        driver.get(baseUrl + "xhtmlTest.html");
+        ResultPage result = xhtmlTestPage.open().followLink();
 
-        driver.findElement(By.id("linkId")).click();
-
-        assertTrue(driver.getCurrentUrl().endsWith("resultPage.html"), driver.getCurrentUrl());
+        assertEquals(result.getGreeting(), "Success!");
     }
 
     @Test
     public void typeEmail() {
-        driver.get(baseUrl + "formPage.html");
+        formPage.open().typeEmail("qa@example.com");
 
-        WebElement email = driver.findElement(By.id("email"));
-        email.sendKeys("qa@example.com");
-
-        assertEquals(email.getAttribute("value"), "qa@example.com");
+        assertEquals(formPage.getEmail(), "qa@example.com");
     }
 
     @Test
     public void checkCheckbox() {
-        driver.get(baseUrl + "formPage.html");
+        formPage.open().checkCheckbox();
 
-        WebElement checkbox = driver.findElement(By.id("checky"));
-        checkbox.click();
-
-        assertTrue(checkbox.isSelected());
+        assertTrue(formPage.isCheckboxChecked());
     }
 
     @Test
     public void clickRunsJavascript() {
-        driver.get(baseUrl + "javascriptPage.html");
+        javascriptPage.open().clickField();
 
-        WebElement field = driver.findElement(By.id("clickField"));
-        field.click();
-
-        assertEquals(field.getAttribute("value"), "Clicked");
+        assertEquals(javascriptPage.getFieldValue(), "Clicked");
     }
 }

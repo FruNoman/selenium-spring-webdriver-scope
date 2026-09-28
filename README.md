@@ -50,12 +50,14 @@ running tests in parallel.
 
 ## What's here
 
-The whole repo is three pieces of wiring and one test class:
+The whole repo is the driver wiring, a handful of page objects and two test classes:
 
 ```
 scope/WebdriverScope.java         SimpleThreadScope + "discard a quit() session"
 config/WebDriverConfig.java       local browsers   (@Profile("local"))
 config/RemoteWebDriverConfig.java Grid browsers    (@Profile("grid"))
+pages/BasePage.java               @Autowired WebDriver + PageFactory.initElements
+pages/*Page.java                  one @Component per selenium.dev test page
 BaseWebTest.java                  TestNG + Spring: @Autowired WebDriver, quit() after each test
 WebFormTests.java                 5 tests on web-form.html
 OtherPagesTests.java              5 tests on other selenium.dev test pages
@@ -91,12 +93,36 @@ not a browser. Every call on it goes through `WebdriverScope.get()` and
 lands on the current thread's live driver — a fresh one if the previous
 session was `quit()`. `@AfterMethod` quits the browser.
 
+[`BasePage`](src/main/java/com/frunoyman/webdriverscope/pages/BasePage.java) —
+what every page object extends: `@Autowired protected WebDriver driver`
+(the same scoped proxy), `@Value("${base.url}") baseUrl`, an abstract
+`open()`, and a `@PostConstruct` that runs
+`PageFactory.initElements(driver, this)` so `@FindBy` fields resolve.
+Pages ([`WebFormPage`](src/main/java/com/frunoyman/webdriverscope/pages/WebFormPage.java),
+`SubmittedFormPage`, `XhtmlTestPage`, `ResultPage`, `FormPage`,
+`JavascriptPage`) are **plain singleton `@Component`s**. That's safe only
+because of the proxy: `initElements` runs once, but each `@FindBy` field
+is a lazy locator that searches through `driver` on every use — i.e.
+through the current thread's browser. One page instance serves every test
+and every parallel thread, so a page must keep no state of its own in
+fields. A transition returns the next page, which is itself injected with
+`@Autowired` (`WebFormPage.submit()` → `SubmittedFormPage`).
+
 [`WebFormTests`](src/test/java/com/frunoyman/webdriverscope/WebFormTests.java)
 and [`OtherPagesTests`](src/test/java/com/frunoyman/webdriverscope/OtherPagesTests.java) —
-5 tests each, each one opens a
-[selenium.dev test page](https://www.selenium.dev/selenium/web/web-form.html)
-and does one short thing (type, select, click, submit, follow a link).
-No page objects — the tests use `driver` directly.
+5 tests each. A test `@Autowired`s the pages it needs, calls `open()`
+and does one short thing (type, select, click, submit, follow a link):
+
+```java
+@Autowired
+private WebFormPage webFormPage;
+
+@Test
+public void submitForm() {
+    SubmittedFormPage submitted = webFormPage.open().submit();
+    assertEquals(submitted.getMessage(), "Received!");
+}
+```
 
 Two independent switches, no code changes:
 
@@ -234,6 +260,6 @@ stepping on each other.
 
 ## What this is not
 
-This is deliberately just the driver config, the scope and one proof
-test class. No page objects, no custom elements, no DB layer, no test-env
-files — none of that is the point here.
+This is deliberately just the driver config, the scope, plain
+`PageFactory` page objects and two small test classes. No custom elements,
+no DB layer, no test-env files — none of that is the point here.

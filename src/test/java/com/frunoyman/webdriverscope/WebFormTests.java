@@ -1,61 +1,57 @@
 package com.frunoyman.webdriverscope;
 
-import org.openqa.selenium.By;
-import org.openqa.selenium.WebElement;
-import org.openqa.selenium.support.ui.Select;
+import com.frunoyman.webdriverscope.pages.SubmittedFormPage;
+import com.frunoyman.webdriverscope.pages.WebFormPage;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
 
-/** selenium.dev's web form: one short action per test. */
+/** selenium.dev's web form: one short action per test, through {@link WebFormPage}. */
 public class WebFormTests extends BaseWebTest {
+
+    // a singleton page, shared by every test and thread — safe because
+    // its driver is the per-thread scoped proxy
+    @Autowired
+    private WebFormPage webFormPage;
 
     @Test
     public void pageHasTitle() {
-        driver.get(baseUrl + "web-form.html");
+        webFormPage.open();
 
-        assertEquals(driver.getTitle(), "Web form");
+        assertEquals(webFormPage.getTitle(), "Web form");
     }
 
     @Test
     public void typeIntoTextInput() {
-        driver.get(baseUrl + "web-form.html");
+        webFormPage.open().typeText("hello");
 
-        WebElement input = driver.findElement(By.name("my-text"));
-        input.sendKeys("hello");
-
-        assertEquals(input.getAttribute("value"), "hello");
+        assertEquals(webFormPage.getText(), "hello");
     }
 
     @Test
     public void selectFromDropdown() {
-        driver.get(baseUrl + "web-form.html");
+        webFormPage.open().selectOption("Two");
 
-        Select select = new Select(driver.findElement(By.name("my-select")));
-        select.selectByVisibleText("Two");
-
-        assertEquals(select.getFirstSelectedOption().getAttribute("value"), "2");
+        assertEquals(webFormPage.getSelectedValue(), "2");
     }
 
     @Test
     public void toggleCheckbox() {
-        driver.get(baseUrl + "web-form.html");
+        webFormPage.open();
+        assertFalse(webFormPage.isCheckboxChecked());
 
-        WebElement checkbox = driver.findElement(By.id("my-check-2"));
-        assertFalse(checkbox.isSelected());
-        checkbox.click();
+        webFormPage.toggleCheckbox();
 
-        assertTrue(checkbox.isSelected());
+        assertTrue(webFormPage.isCheckboxChecked());
     }
 
     @Test
     public void submitForm() {
-        driver.get(baseUrl + "web-form.html");
+        SubmittedFormPage submitted = webFormPage.open().submit();
 
-        driver.findElement(By.cssSelector("button[type='submit']")).click();
-
-        assertEquals(driver.findElement(By.id("message")).getText(), "Received!");
+        assertEquals(submitted.getMessage(), "Received!");
     }
 }

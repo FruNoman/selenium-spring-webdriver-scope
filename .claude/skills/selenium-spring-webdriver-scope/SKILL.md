@@ -1,15 +1,16 @@
 ---
 name: selenium-spring-webdriver-scope
-description: How this repo's TestNG + Spring + WebDriver link works — the thread-scoped WebdriverScope with a scoped proxy, profile-based browser/runner switching, and two small test classes run sequentially or in parallel (testng.xml), locally or on Grid (profile) — plus the non-obvious findings from building it (built-in WebDriverScope isn't thread-scoped, the hub's pretty-printed /status JSON breaks naive grep, class-level vs method-level @Profile). Use whenever touching WebDriverConfig/RemoteWebDriverConfig/WebdriverScope/BaseWebTest, adding a browser/runner combination, or changing how tests run in parallel.
+description: How this repo's TestNG + Spring + WebDriver link works — the thread-scoped WebdriverScope with a scoped proxy, singleton PageFactory page objects with an @Autowired driver, profile-based browser/runner switching, and two small test classes run sequentially or in parallel (testng.xml), locally or on Grid (profile) — plus the non-obvious findings from building it (built-in WebDriverScope isn't thread-scoped, the hub's pretty-printed /status JSON breaks naive grep, class-level vs method-level @Profile). Use whenever touching WebDriverConfig/RemoteWebDriverConfig/WebdriverScope/BaseWebTest/BasePage, adding a page object, adding a browser/runner combination, or changing how tests run in parallel.
 ---
 
 # selenium-spring-webdriver-scope
 
 Workflow skills come from the `web-automation` plugin
 ([qa-automation-toolkit](https://github.com/FruNoman/qa-automation-toolkit),
-enabled in `.claude/settings.json`): `run-test`, `self-analysis` + its Stop hook + the `selenium` MCP. The
-page-object / site-map / login skills don't apply here: this repo
-deliberately has no pages, no elements and no site map.
+enabled in `.claude/settings.json`): `run-test`, `self-analysis` + its Stop hook + the `selenium` MCP. This
+repo deliberately has plain `PageFactory` pages only — no custom elements,
+no site map, no login — so the plugin's page/element conventions beyond
+that don't apply.
 
 A minimal Spring Boot + Selenium + TestNG repo demonstrating one specific
 problem (a cached `@SpringBootTest` context handing back a dead
@@ -57,7 +58,7 @@ though the sequential run (`./gradlew test`) doesn't strictly need it.
 
 Every `WebDriver` `@Bean` (`WebDriverConfig`, `RemoteWebDriverConfig`) is
 `@Scope(value = "webdriverscope", proxyMode = ScopedProxyMode.TARGET_CLASS)`.
-Whoever autowires `WebDriver` — here only `BaseWebTest` — receives
+Whoever autowires `WebDriver` — `BasePage` and `BaseWebTest` — receives
 **one CGLIB proxy, not a browser**. Every call on it goes through
 `WebdriverScope.get()`, which returns the current thread's driver and
 creates a new one if that session was already `quit()`. So the question
@@ -65,7 +66,9 @@ creates a new one if that session was already `quit()`. So the question
 
 Consequences, all verified 2026-09-28 (local and Grid, `parallel="none"`
 and `"methods"` with 10 threads → 10 distinct session ids through one field):
-- **The test injects the driver with plain `@Autowired`** — no `@Lazy`.
+- **Pages are plain singleton `@Component`s** — no `@Scope("prototype")`,
+  and tests inject them with plain `@Autowired` — no `@Lazy`.
+- **The test injects the driver with plain `@Autowired`** too.
   `BaseWebTest` holds `protected WebDriver driver` (the proxy);
   `tearDownTest()` quits it with a plain `driver.quit()`, and the next call
   on that thread gets a new session.
@@ -84,6 +87,55 @@ The idea came from the Sphise `automation-tests` framework, whose pages
 are singletons because Selenide's `$()` resolves the thread's driver per
 call (their `@Scope(proxyMode = TARGET_CLASS)` on the abstract
 `PageBaseCore` is actually inert — `@Scope` is not `@Inherited`).
+
+## Page objects: `@Autowired` driver + plain `PageFactory`
+
+`src/main/java/.../pages/`. Every page extends `BasePage`:
+
+```java
+@Component
+public class SomePage extends BasePage {
+
+    @FindBy(id = "whatever")
+    private WebElement field;
+
+    @Autowired
+    private NextPage nextPage;          // transition target, also a bean
+
+    @Override
+    public SomePage open() {
+        driver.get(baseUrl + "some-page.html");
+        return this;
+    }
+
+    public NextPage doSomething() {
+        field.click();
+        return nextPage;
+    }
+}
+```
+
+- `BasePage`: `@Autowired protected WebDriver driver` (the proxy),
+  `@Value("${base.url}") protected String baseUrl`, `public abstract
+  BasePage open()`, and `@PostConstruct` → `PageFactory.initElements(driver,
+  this)`. `@Component` goes on the subclass, never on `BasePage`.
+- `initElements` runs once per page bean; each `@FindBy` field becomes a lazy
+  locator searching through the proxy on every call → always the current
+  thread's browser. Verified 2026-09-28: local `none`/`methods`, Grid chrome
+  and firefox `methods` — 10/10 each.
+- **Stateless pages**: one instance per page for all tests and threads.
+  `@FindBy` fields and `driver` are safe; any other mutable field is shared
+  state that parallel tests will overwrite.
+- Fields private, behaviour through methods; `open()` returns the page
+  itself (covariant) so calls chain: `webFormPage.open().typeText("x")`.
+- A "back" transition (two pages autowiring each other) fails at startup —
+  Spring Boot ≥ 2.6 prohibits circular references. Make the back link
+  `@Lazy @Autowired`.
+- No custom elements (`BaseElement`/`ElementFieldDecorator`) — they existed
+  until 2026-09-28 and were removed as out of scope; plain
+  `PageFactory.initElements` decorates every `WebElement` field, including an
+  un-annotated one (by id-or-name from the field name), so don't leave
+  un-annotated `WebElement` fields in a page.
 
 ## Logging: SLF4J/Logback, MDC per test
 
@@ -158,9 +210,9 @@ and were removed on 2026-09-28 as out of scope for this demo.)
 ## Sequential vs parallel: one suite, switched in testng.xml
 
 Two test classes, 5 tests each: `WebFormTests` (web-form.html) and
-`OtherPagesTests` (xhtmlTest/formPage/javascriptPage.html). Each test opens
-its page itself and does one short action; `BaseWebTest` only quits the
-browser in `@AfterMethod`. No page objects, no helpers — on purpose.
+`OtherPagesTests` (xhtmlTest/formPage/javascriptPage.html). Each test
+`@Autowired`s its pages, calls `open()` and does one short action;
+`BaseWebTest` only quits the browser in `@AfterMethod`.
 
 One suite, `src/test/resources/testng.xml`, one Gradle task `test`.
 Parallelism is the suite's `parallel` attribute (`none` / `methods` /
