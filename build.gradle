@@ -55,26 +55,6 @@ test {
     // line reach the test JVM, so switching local/grid or chrome/firefox
     // never needs a code or properties-file change.
     systemProperties.putAll(
-            System.properties.findAll { k, v -> ['spring.', 'grid.', 'test.'].any { k.toString().startsWith(it) } }
-    )
-}
-
-// Separate task, separate TestNG suite (parallel="methods" thread-count=10)
-// — kept apart from the default `test` task so the plain sequential demo
-// above isn't accidentally parallelized too.
-tasks.register('testParallel', Test) {
-    group = 'verification'
-    description = 'Runs ParallelGridTests with TestNG parallel="methods" thread-count=10 against Selenium Grid.'
-    testClassesDirs = sourceSets.test.output.classesDirs
-    classpath = sourceSets.test.runtimeClasspath
-    useTestNG() {
-        suites 'src/test/resources/testng-parallel.xml'
-    }
-    testLogging {
-        events 'passed', 'failed'
-        showStandardStreams = true
-    }
-    systemProperties.putAll(
-            System.properties.findAll { k, v -> ['spring.', 'grid.', 'test.'].any { k.toString().startsWith(it) } }
+            System.properties.findAll { k, v -> ['spring.', 'grid.'].any { k.toString().startsWith(it) } }
     )
 }

@@ -1,17 +1,14 @@
-# Three independent axes:
-#   browser  — Spring profile chrome | firefox
-#   runner   — Spring profile local | grid (application-<runner>.yml)
-#   test env — which deployment of the app is tested: test.env → env/<name>.yml
-#              (-Dtest.env=stage or TEST_ENV=stage; default: env/default.yml)
-# Anything here can be overridden per run by env vars (Spring binds
-# GRID_URL → grid.url, BASE_URL → base.url) or -D.
+# Two independent axes, both Spring profiles:
+#   browser — chrome | firefox
+#   runner  — local | grid (application-<runner>.yml)
+# Override per run with -Dspring.profiles.active=firefox,grid, or any value
+# with an env var / -D (GRID_URL → grid.url, BASE_URL → base.url).
 spring:
   profiles:
     active: chrome,local
-  config:
-    # not optional: on purpose — an unknown test.env must fail at startup
-    # instead of silently running against no URLs
-    import: classpath:env/${test.env:default}.yml
+
+base:
+  url: https://www.selenium.dev/selenium/web/
 
 implicit:
   timeout:

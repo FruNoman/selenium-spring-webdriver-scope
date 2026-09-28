@@ -16,7 +16,7 @@ import org.testng.ITestResult;
  * MDC "test" (Class.method) is set in beforeConfiguration of the first
  * per-method configuration, not in onTestStart: TestNG calls onTestStart
  * only after @BeforeMethod has run (verified), which would leave the
- * setup's logs — opening the entry page, logging in — untagged. The
+ * setup's logs — browser start, opening the page — untagged. The
  * two-argument beforeConfiguration receives the test method a
  * configuration runs for. MDC is thread-local and TestNG runs a test's
  * configurations and body on one thread, so this holds for

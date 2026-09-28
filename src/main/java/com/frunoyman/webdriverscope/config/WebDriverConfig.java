@@ -40,7 +40,7 @@ import java.time.Duration;
  * test asks for it, not at context startup.
  *
  * {@code proxyMode = TARGET_CLASS}: whoever autowires {@code WebDriver}
- * (pages, elements, tests) gets one CGLIB proxy, not a browser. Every
+ * (BaseWebTest) gets one CGLIB proxy, not a browser. Every
  * call on it goes through {@code WebdriverScope.get()}, i.e. lands on the
  * current thread's live driver — so the holders themselves can be plain
  * singletons. Return type is {@code RemoteWebDriver}, not

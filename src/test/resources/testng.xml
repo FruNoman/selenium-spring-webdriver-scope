@@ -1,10 +1,16 @@
 <!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
-<suite name="webdriver-scope-demo"  parallel="methods" thread-count="3">
-    <test name="cross-class-driver-recycling">
+<!--
+  Parallelism is set here, nothing else changes:
+    parallel="none"     one thread, tests one after another
+    parallel="methods"  up to thread-count tests at once, one browser each
+    parallel="classes"  one thread per class
+  Local or Grid is the Spring profile: -Dspring.profiles.active=chrome,grid
+-->
+<suite name="webdriver-scope-demo" parallel="methods" thread-count="10">
+    <test name="demo">
         <classes>
-            <class name="com.frunoyman.webdriverscope.FirstFormTests"/>
-            <class name="com.frunoyman.webdriverscope.SecondFormTests"/>
-            <class name="com.frunoyman.webdriverscope.TableElementTests"/>
+            <class name="com.frunoyman.webdriverscope.WebFormTests"/>
+            <class name="com.frunoyman.webdriverscope.OtherPagesTests"/>
         </classes>
     </test>
 </suite>
